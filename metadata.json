@@ -1,0 +1,6 @@
+{
+  "name": "Recanto Social Bom Pastor — Projeto Sopão",
+  "description": "Portal institucional, acervo histórico e central de voluntariado da Associação Recanto Social Bom Pastor (Projeto Sopão) em Plácido de Castro, Acre.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
