@@ -13,10 +13,14 @@ import {
 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import {
+  buildDonationReceiptWhatsappUrl,
   buildMonthlyDonorWhatsappUrl,
   buildPickupWhatsappUrl,
   buildPixPayload,
+  DonationRecord,
+  MonthlyDonorRecord,
   PickupItemSelection,
+  PickupScheduleRecord,
   PIX_INFO,
   useDonationsStore,
 } from '../data/donationsStore';
@@ -56,7 +60,7 @@ function PixQrMatrix() {
   return (
     <svg
       viewBox={`0 0 ${size} ${size}`}
-      className="h-36 w-36 rounded border border-[#E2DDD3] bg-white p-2"
+      className="h-36 w-36 rounded border-2 border-[#BBF7D0] bg-white p-2"
       role="img"
       aria-label="QR Code PIX da Associação Recanto Social Bom Pastor"
     >
@@ -64,7 +68,7 @@ function PixQrMatrix() {
         if (!filled) return null;
         const x = idx % size;
         const y = Math.floor(idx / size);
-        return <rect key={idx} x={x} y={y} width={1} height={1} fill="#1C1917" />;
+        return <rect key={idx} x={x} y={y} width={1} height={1} fill="#14532D" />;
       })}
     </svg>
   );
@@ -89,7 +93,7 @@ export function DonationModal({
   const [donorEmail, setDonorEmail] = useState('');
   const [donorPhone, setDonorPhone] = useState('');
   const [donorNotes, setDonorNotes] = useState('');
-  const [donationSuccessCode, setDonationSuccessCode] = useState<string | null>(null);
+  const [createdDonationReceipt, setCreatedDonationReceipt] = useState<DonationRecord | null>(null);
 
   // Monthly donor form
   const [monthlyAmount, setMonthlyAmount] = useState<number>(50);
@@ -102,7 +106,7 @@ export function DonationModal({
     'CNPJ 33.314.701/0001-54' | 'Telefone +55 68 9958-7200'
   >('Telefone +55 68 9958-7200');
   const [monthlyPaidNow, setMonthlyPaidNow] = useState(true);
-  const [monthlySuccessUrl, setMonthlySuccessUrl] = useState<string | null>(null);
+  const [createdMonthlyDonor, setCreatedMonthlyDonor] = useState<MonthlyDonorRecord | null>(null);
 
   // Pickup tab state
   const [collabName, setCollabName] = useState('');
@@ -116,7 +120,7 @@ export function DonationModal({
   const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({});
   const [customItemsText, setCustomItemsText] = useState('');
   const [pickupError, setPickupError] = useState('');
-  const [pickupSubmittedUrl, setPickupSubmittedUrl] = useState<string | null>(null);
+  const [createdPickupReceipt, setCreatedPickupReceipt] = useState<PickupScheduleRecord | null>(null);
 
   useEffect(() => {
     setTab(initialTab);
@@ -195,7 +199,7 @@ export function DonationModal({
         }).`,
     });
 
-    setDonationSuccessCode(record.referenceCode);
+    setCreatedDonationReceipt(record);
     setDonorName('');
     setDonorEmail('');
     setDonorPhone('');
@@ -215,14 +219,7 @@ export function DonationModal({
       notes: `Adesão via portal com PIX ${monthlyPixChannel}.`,
     });
 
-    setMonthlySuccessUrl(
-      buildMonthlyDonorWhatsappUrl({
-        name: donor.name,
-        monthlyAmountBRL: donor.monthlyAmountBRL,
-        dueDay: donor.dueDay,
-        pixChannel: donor.pixChannel,
-      })
-    );
+    setCreatedMonthlyDonor(donor);
     setMonthlyName('');
     setMonthlyEmail('');
     setMonthlyPhone('');
@@ -262,9 +259,9 @@ export function DonationModal({
       customItemsText: customItemsText.trim(),
     };
 
-    addPickupSchedule(payload);
+    const createdPickup = addPickupSchedule(payload);
     setPickupError('');
-    setPickupSubmittedUrl(buildPickupWhatsappUrl(payload));
+    setCreatedPickupReceipt(createdPickup);
   };
 
   return (
@@ -272,23 +269,23 @@ export function DonationModal({
       role="dialog"
       aria-modal="true"
       aria-labelledby="donation-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4 sm:p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#052E16]/70 p-4 sm:p-6"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border border-[#D6CEBE] bg-[#FBF9F5] shadow-2xl"
+        className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg border-2 border-[#15803D] bg-white shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#E2DDD3] bg-white px-6 py-4">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#BBF7D0] bg-white px-6 py-4">
           <div>
-            <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-widest text-[#14532D]">
-              <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+            <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-[#15803D]">
+              <Lock className="h-3.5 w-3.5 text-[#854D0E]" aria-hidden="true" />
               <span>
                 PIX CNPJ {PIX_INFO.pixKey} · PIX Telefone {PIX_INFO.pixPhoneDisplay}
               </span>
             </p>
-            <h2 id="donation-modal-title" className="mt-1 font-serif text-xl font-semibold text-[#1C1917]">
+            <h2 id="donation-modal-title" className="mt-1 font-serif text-xl font-semibold text-[#052E16]">
               Apoiar a {PIX_INFO.beneficiary}
             </h2>
           </div>
@@ -297,15 +294,15 @@ export function DonationModal({
             type="button"
             onClick={onClose}
             aria-label="Fechar janela de doação"
-            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-[#E2DDD3] text-[#1C1917] hover:bg-[#EFEBE3]"
+            className="inline-flex h-10 w-10 cursor-pointer items-center justify-center rounded-md border border-[#86EFAC] bg-white text-[#052E16] hover:bg-[#FEFCE8]"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         {/* Mode Tabs */}
-        <div className="border-b border-[#E2DDD3] bg-[#F4F0E8] px-6 py-3">
-          <div role="tablist" className="inline-flex flex-wrap gap-1 rounded-lg bg-[#E8E2D5] p-1">
+        <div className="border-b border-[#BBF7D0] bg-[#F0FDF4] px-6 py-3">
+          <div role="tablist" className="inline-flex flex-wrap gap-1 rounded-lg border border-[#BBF7D0] bg-[#DCFCE7] p-1">
             <button
               type="button"
               role="tab"
@@ -313,8 +310,8 @@ export function DonationModal({
               onClick={() => setTab('pix')}
               className={`inline-flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                 tab === 'pix'
-                  ? 'bg-white text-[#1C1917] shadow-sm'
-                  : 'text-[#57534E] hover:text-[#1C1917]'
+                  ? 'bg-[#15803D] text-white shadow-sm'
+                  : 'text-[#14532D] hover:bg-white/80'
               }`}
             >
               <QrCode className="h-3.5 w-3.5" aria-hidden="true" />
@@ -327,8 +324,8 @@ export function DonationModal({
               onClick={() => setTab('monthly')}
               className={`inline-flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                 tab === 'monthly'
-                  ? 'bg-white text-[#1C1917] shadow-sm'
-                  : 'text-[#57534E] hover:text-[#1C1917]'
+                  ? 'bg-[#15803D] text-white shadow-sm'
+                  : 'text-[#14532D] hover:bg-white/80'
               }`}
             >
               <CalendarClock className="h-3.5 w-3.5" aria-hidden="true" />
@@ -341,8 +338,8 @@ export function DonationModal({
               onClick={() => setTab('pickup')}
               className={`inline-flex cursor-pointer items-center gap-2 rounded-md px-4 py-2 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                 tab === 'pickup'
-                  ? 'bg-white text-[#1C1917] shadow-sm'
-                  : 'text-[#57534E] hover:text-[#1C1917]'
+                  ? 'bg-[#15803D] text-white shadow-sm'
+                  : 'text-[#14532D] hover:bg-white/80'
               }`}
             >
               <Truck className="h-3.5 w-3.5" aria-hidden="true" />
@@ -357,7 +354,7 @@ export function DonationModal({
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
               <div className="space-y-5 lg:col-span-6">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-widest text-[#78716C]">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-[#15803D]">
                     1. Valor e Chave PIX Oficial
                   </p>
                   <div className="mt-3 grid grid-cols-4 gap-2">
@@ -371,10 +368,10 @@ export function DonationModal({
                             setAmount(val);
                             setCustomAmount('');
                           }}
-                          className={`min-h-[42px] cursor-pointer rounded-md border font-mono text-xs font-medium tabular-nums transition-colors ${
+                          className={`min-h-[42px] cursor-pointer rounded-md border font-mono text-xs font-semibold tabular-nums transition-colors ${
                             active
-                              ? 'border-[#14532D] bg-[#14532D] text-white'
-                              : 'border-[#D6CEBE] bg-white text-[#1C1917] hover:bg-[#F4F0E8]'
+                              ? 'border-[#15803D] bg-[#15803D] text-white'
+                              : 'border-[#86EFAC] bg-white text-[#052E16] hover:bg-[#F0FDF4]'
                           }`}
                         >
                           R$ {val}
@@ -384,7 +381,7 @@ export function DonationModal({
                   </div>
 
                   <div className="mt-3">
-                    <label htmlFor="custom-donation-amount" className="block text-xs text-[#57534E]">
+                    <label htmlFor="custom-donation-amount" className="block text-xs font-medium text-[#14532D]">
                       Ou informe outro valor (R$)
                     </label>
                     <input
@@ -395,7 +392,7 @@ export function DonationModal({
                       value={customAmount}
                       onChange={(e) => setCustomAmount(e.target.value)}
                       placeholder="Ex.: 150"
-                      className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-white px-3 py-2 font-mono text-sm tabular-nums text-[#1C1917]"
+                      className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 font-mono text-sm tabular-nums text-[#052E16]"
                     />
                   </div>
                 </div>
@@ -406,8 +403,8 @@ export function DonationModal({
                     onClick={() => setPaymentMethod('PIX')}
                     className={`flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold transition-colors ${
                       paymentMethod === 'PIX'
-                        ? 'border-[#14532D] bg-[#14532D]/10 text-[#14532D]'
-                        : 'border-[#D6CEBE] bg-white text-[#57534E]'
+                        ? 'border-[#15803D] bg-[#F0FDF4] text-[#15803D]'
+                        : 'border-[#BBF7D0] bg-white text-[#166534]'
                     }`}
                   >
                     <QrCode className="h-4 w-4" aria-hidden="true" />
@@ -418,8 +415,8 @@ export function DonationModal({
                     onClick={() => setPaymentMethod('Gateway Cartão/Boleto')}
                     className={`flex min-h-[44px] cursor-pointer items-center justify-center gap-2 rounded-md border px-3 py-2 text-xs font-semibold transition-colors ${
                       paymentMethod === 'Gateway Cartão/Boleto'
-                        ? 'border-[#14532D] bg-[#14532D]/10 text-[#14532D]'
-                        : 'border-[#D6CEBE] bg-white text-[#57534E]'
+                        ? 'border-[#15803D] bg-[#F0FDF4] text-[#15803D]'
+                        : 'border-[#BBF7D0] bg-white text-[#166534]'
                     }`}
                   >
                     <CreditCard className="h-4 w-4" aria-hidden="true" />
@@ -428,15 +425,15 @@ export function DonationModal({
                 </div>
 
                 {/* Dual PIX Key Card */}
-                <div className="rounded-lg border border-[#E2DDD3] bg-white p-5 space-y-4">
+                <div className="rounded-lg border-2 border-[#BBF7D0] bg-[#F0FDF4] p-5 space-y-4">
                   <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={() => setPixKeyOption('cnpj')}
                       className={`cursor-pointer rounded px-3 py-1.5 text-xs font-semibold ${
                         pixKeyOption === 'cnpj'
-                          ? 'bg-[#14532D] text-white'
-                          : 'bg-[#F4F0E8] text-[#57534E]'
+                          ? 'bg-[#15803D] text-white'
+                          : 'border border-[#BBF7D0] bg-white text-[#14532D]'
                       }`}
                     >
                       Chave CNPJ: {PIX_INFO.pixKey}
@@ -446,8 +443,8 @@ export function DonationModal({
                       onClick={() => setPixKeyOption('phone')}
                       className={`cursor-pointer rounded px-3 py-1.5 text-xs font-semibold ${
                         pixKeyOption === 'phone'
-                          ? 'bg-[#14532D] text-white'
-                          : 'bg-[#F4F0E8] text-[#57534E]'
+                          ? 'bg-[#15803D] text-white'
+                          : 'border border-[#BBF7D0] bg-white text-[#14532D]'
                       }`}
                     >
                       Chave Telefone: {PIX_INFO.pixPhoneDisplay}
@@ -457,16 +454,16 @@ export function DonationModal({
                   <div className="flex flex-col items-start gap-5 sm:flex-row sm:items-center">
                     <PixQrMatrix />
                     <div className="min-w-0 flex-1 space-y-2">
-                      <p className="text-xs text-[#57534E]">
-                        Favorecido: <strong className="text-[#1C1917]">{PIX_INFO.beneficiary}</strong>
+                      <p className="text-xs text-[#14532D]">
+                        Favorecido: <strong className="text-[#052E16]">{PIX_INFO.beneficiary}</strong>
                       </p>
-                      <p className="text-xs text-[#57534E]">
+                      <p className="text-xs text-[#14532D]">
                         Chave selecionada:{' '}
-                        <span className="font-mono font-semibold tabular-nums text-[#1C1917]">
+                        <span className="font-mono font-semibold tabular-nums text-[#052E16]">
                           {pixKeyOption === 'phone' ? PIX_INFO.pixPhoneDisplay : PIX_INFO.pixKey}
                         </span>
                       </p>
-                      <p className="font-mono text-sm font-semibold tabular-nums text-[#14532D]">
+                      <p className="font-mono text-sm font-bold tabular-nums text-[#15803D]">
                         Valor: R$ {effectiveAmount.toFixed(2).replace('.', ',')}
                       </p>
 
@@ -479,10 +476,10 @@ export function DonationModal({
                               pixKeyOption
                             )
                           }
-                          className="inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded border border-[#D6CEBE] bg-[#FBF9F5] px-3 py-1.5 text-xs font-medium text-[#1C1917] hover:bg-[#EFEBE3]"
+                          className="inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded border border-[#CA8A04] bg-[#FEFCE8] px-3 py-1.5 text-xs font-semibold text-[#854D0E] hover:bg-[#FEF08A]"
                         >
                           {copiedField === pixKeyOption ? (
-                            <Check className="h-3.5 w-3.5 text-[#14532D]" />
+                            <Check className="h-3.5 w-3.5 text-[#15803D]" />
                           ) : (
                             <Copy className="h-3.5 w-3.5" />
                           )}
@@ -494,7 +491,7 @@ export function DonationModal({
                         <button
                           type="button"
                           onClick={() => handleCopy(pixPayload, 'payload')}
-                          className="inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded border border-[#14532D] bg-[#14532D] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#0F3F22]"
+                          className="inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded border border-[#15803D] bg-[#15803D] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#14532D]"
                         >
                           {copiedField === 'payload' ? (
                             <Check className="h-3.5 w-3.5" />
@@ -512,37 +509,71 @@ export function DonationModal({
               </div>
 
               <div className="lg:col-span-6">
-                <div className="rounded-lg border border-[#E2DDD3] bg-white p-5">
-                  <p className="text-xs font-medium uppercase tracking-widest text-[#78716C]">
+                <div className="rounded-lg border-2 border-[#BBF7D0] bg-white p-5">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-[#15803D]">
                     2. Registrar no controle contábil da associação
                   </p>
-                  <h3 className="mt-1 font-serif text-lg font-semibold text-[#1C1917]">
+                  <h3 className="mt-1 font-serif text-lg font-semibold text-[#052E16]">
                     {paymentMethod === 'PIX'
                       ? 'Confirmar transferência ou intenção PIX'
                       : 'Checkout Seguro · Cartão ou Boleto'}
                   </h3>
 
-                  {donationSuccessCode ? (
-                    <div className="mt-5 space-y-4 rounded-lg border border-[#14532D]/30 bg-[#FBF9F5] p-5">
+                  {createdDonationReceipt ? (
+                    <div className="mt-5 space-y-4 rounded-lg border-2 border-[#15803D] bg-[#F0FDF4] p-5">
                       <div className="flex items-start gap-3">
-                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#14532D]" />
-                        <div>
-                          <p className="font-serif text-lg font-semibold text-[#1C1917]">
-                            Doação registrada no painel administrativo
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#15803D]" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-serif text-lg font-semibold text-[#052E16]">
+                            Recibo da Doação Gerado
                           </p>
-                          <p className="mt-1 font-mono text-xs text-[#14532D]">
-                            Protocolo: {donationSuccessCode}
+                          <p className="mt-1 font-mono text-xs font-semibold tabular-nums text-[#854D0E]">
+                            Protocolo: {createdDonationReceipt.referenceCode} ·{' '}
+                            {createdDonationReceipt.createdAt}
                           </p>
-                          <p className="mt-2 text-xs leading-relaxed text-[#44403C]">
-                            O lançamento já aparece no controle de recebimentos e na contabilidade
-                            do painel administrativo.
-                          </p>
+                          <dl className="mt-3 space-y-1 border-t border-[#BBF7D0] pt-2.5 text-xs text-[#14532D]">
+                            <div className="flex justify-between gap-2">
+                              <dt>Colaborador(a):</dt>
+                              <dd className="font-semibold text-[#052E16]">
+                                {createdDonationReceipt.donorName}
+                              </dd>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                              <dt>Modalidade:</dt>
+                              <dd className="font-semibold text-[#052E16]">
+                                {createdDonationReceipt.type}
+                              </dd>
+                            </div>
+                            <div className="flex justify-between gap-2">
+                              <dt>Valor:</dt>
+                              <dd className="font-mono font-bold tabular-nums text-[#15803D]">
+                                R${' '}
+                                {(createdDonationReceipt.amountBRL ?? 0)
+                                  .toFixed(2)
+                                  .replace('.', ',')}
+                              </dd>
+                            </div>
+                          </dl>
                         </div>
                       </div>
+
+                      <a
+                        href={buildDonationReceiptWhatsappUrl(createdDonationReceipt)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-[#15803D] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#14532D]"
+                      >
+                        <MessageCircle className="h-4 w-4 text-[#FEF08A]" aria-hidden="true" />
+                        <span>
+                          Enviar Recibo para WhatsApp ({PIX_INFO.pickupWhatsappDisplay})
+                        </span>
+                        <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                      </a>
+
                       <button
                         type="button"
-                        onClick={() => setDonationSuccessCode(null)}
-                        className="inline-flex min-h-[40px] cursor-pointer items-center rounded-md border border-[#D6CEBE] bg-white px-4 py-2 text-xs font-medium text-[#1C1917]"
+                        onClick={() => setCreatedDonationReceipt(null)}
+                        className="inline-flex min-h-[38px] cursor-pointer items-center rounded-md border border-[#86EFAC] bg-white px-4 py-2 text-xs font-semibold text-[#052E16] hover:bg-[#FEFCE8]"
                       >
                         Registrar outra doação
                       </button>
@@ -550,7 +581,7 @@ export function DonationModal({
                   ) : (
                     <form onSubmit={handleConfirmFinancialDonation} className="mt-4 space-y-3.5">
                       <div>
-                        <label htmlFor="modal-donor-name" className="block text-xs font-medium text-[#44403C]">
+                        <label htmlFor="modal-donor-name" className="block text-xs font-semibold text-[#14532D]">
                           Nome completo do colaborador
                         </label>
                         <input
@@ -560,13 +591,13 @@ export function DonationModal({
                           value={donorName}
                           onChange={(e) => setDonorName(e.target.value)}
                           placeholder="Seu nome ou razão social"
-                          className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 py-2 text-sm text-[#1C1917]"
+                          className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                         />
                       </div>
 
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
-                          <label htmlFor="modal-donor-email" className="block text-xs font-medium text-[#44403C]">
+                          <label htmlFor="modal-donor-email" className="block text-xs font-semibold text-[#14532D]">
                             E-mail para recibo
                           </label>
                           <input
@@ -576,12 +607,12 @@ export function DonationModal({
                             value={donorEmail}
                             onChange={(e) => setDonorEmail(e.target.value)}
                             placeholder="voce@email.com"
-                            className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 py-2 text-sm text-[#1C1917]"
+                            className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                           />
                         </div>
 
                         <div>
-                          <label htmlFor="modal-donor-phone" className="block text-xs font-medium text-[#44403C]">
+                          <label htmlFor="modal-donor-phone" className="block text-xs font-semibold text-[#14532D]">
                             Telefone / WhatsApp
                           </label>
                           <input
@@ -591,13 +622,13 @@ export function DonationModal({
                             value={donorPhone}
                             onChange={(e) => setDonorPhone(e.target.value)}
                             placeholder="(68) 99900-0000"
-                            className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 py-2 text-sm text-[#1C1917]"
+                            className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label htmlFor="modal-donor-notes" className="block text-xs font-medium text-[#44403C]">
+                        <label htmlFor="modal-donor-notes" className="block text-xs font-semibold text-[#14532D]">
                           Observação (opcional)
                         </label>
                         <input
@@ -606,13 +637,13 @@ export function DonationModal({
                           value={donorNotes}
                           onChange={(e) => setDonorNotes(e.target.value)}
                           placeholder="Ex.: Apoio à panificação ou sopão comunitário"
-                          className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 py-2 text-sm text-[#1C1917]"
+                          className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                         />
                       </div>
 
                       <button
                         type="submit"
-                        className="mt-2 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[#9A3412] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#7C2D12]"
+                        className="mt-2 inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-[#CA8A04] bg-[#FACC15] px-5 py-2.5 text-sm font-bold text-[#052E16] transition-colors hover:bg-[#EAB308]"
                       >
                         <Lock className="h-4 w-4" aria-hidden="true" />
                         <span>
@@ -636,13 +667,13 @@ export function DonationModal({
             <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
               <div className="space-y-5 lg:col-span-6">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-widest text-[#14532D]">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-[#15803D]">
                     Programa Doador Mensal · Projeto Sopão
                   </p>
-                  <h3 className="mt-1 font-serif text-xl font-semibold text-[#1C1917]">
+                  <h3 className="mt-1 font-serif text-xl font-semibold text-[#052E16]">
                     Escolha o valor mensal via PIX
                   </h3>
-                  <p className="mt-1.5 text-xs leading-relaxed text-[#57534E]">
+                  <p className="mt-1.5 text-xs leading-relaxed text-[#14532D]">
                     Sua contribuição recorrente é cadastrada diretamente no Banco de Doadores
                     Mensais da associação e contabilizada no balancete transparente do dashboard.
                   </p>
@@ -658,10 +689,10 @@ export function DonationModal({
                             setMonthlyAmount(val);
                             setMonthlyCustomAmount('');
                           }}
-                          className={`min-h-[42px] cursor-pointer rounded-md border font-mono text-xs font-medium tabular-nums transition-colors ${
+                          className={`min-h-[42px] cursor-pointer rounded-md border font-mono text-xs font-semibold tabular-nums transition-colors ${
                             active
-                              ? 'border-[#14532D] bg-[#14532D] text-white'
-                              : 'border-[#D6CEBE] bg-white text-[#1C1917] hover:bg-[#F4F0E8]'
+                              ? 'border-[#15803D] bg-[#15803D] text-white'
+                              : 'border-[#86EFAC] bg-white text-[#052E16] hover:bg-[#F0FDF4]'
                           }`}
                         >
                           R$ {val}/mês
@@ -671,7 +702,7 @@ export function DonationModal({
                   </div>
 
                   <div className="mt-3">
-                    <label htmlFor="monthly-custom-val" className="block text-xs text-[#57534E]">
+                    <label htmlFor="monthly-custom-val" className="block text-xs font-medium text-[#14532D]">
                       Ou defina outro valor mensal (R$)
                     </label>
                     <input
@@ -681,43 +712,43 @@ export function DonationModal({
                       value={monthlyCustomAmount}
                       onChange={(e) => setMonthlyCustomAmount(e.target.value)}
                       placeholder="Ex.: 80"
-                      className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-white px-3 font-mono text-sm tabular-nums"
+                      className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 font-mono text-sm tabular-nums text-[#052E16]"
                     />
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-[#E2DDD3] bg-white p-5 space-y-3">
-                  <p className="text-xs font-medium uppercase tracking-widest text-[#78716C]">
+                <div className="rounded-lg border-2 border-[#BBF7D0] bg-white p-5 space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-[#15803D]">
                     Chaves PIX para recorrência mensal
                   </p>
                   <div className="space-y-2 text-xs">
-                    <div className="flex items-center justify-between gap-2 rounded border border-[#EFEBE3] bg-[#FBF9F5] p-3">
+                    <div className="flex items-center justify-between gap-2 rounded border border-[#BBF7D0] bg-[#F0FDF4] p-3">
                       <div>
-                        <p className="text-[#78716C]">PIX Telefone</p>
-                        <p className="font-mono font-semibold tabular-nums text-[#1C1917]">
+                        <p className="font-medium text-[#15803D]">PIX Telefone</p>
+                        <p className="font-mono font-bold tabular-nums text-[#052E16]">
                           {PIX_INFO.pixPhoneDisplay}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleCopy(PIX_INFO.pixPhoneKey, 'phone')}
-                        className="cursor-pointer rounded border border-[#D6CEBE] bg-white px-2.5 py-1.5 font-medium text-[#1C1917]"
+                        className="cursor-pointer rounded border border-[#CA8A04] bg-[#FACC15] px-2.5 py-1.5 font-bold text-[#052E16]"
                       >
                         {copiedField === 'phone' ? 'Copiado' : 'Copiar'}
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 rounded border border-[#EFEBE3] bg-[#FBF9F5] p-3">
+                    <div className="flex items-center justify-between gap-2 rounded border border-[#BBF7D0] bg-[#F0FDF4] p-3">
                       <div>
-                        <p className="text-[#78716C]">PIX CNPJ</p>
-                        <p className="font-mono font-semibold tabular-nums text-[#1C1917]">
+                        <p className="font-medium text-[#15803D]">PIX CNPJ</p>
+                        <p className="font-mono font-bold tabular-nums text-[#052E16]">
                           {PIX_INFO.pixKey}
                         </p>
                       </div>
                       <button
                         type="button"
                         onClick={() => handleCopy(PIX_INFO.pixKey, 'cnpj')}
-                        className="cursor-pointer rounded border border-[#D6CEBE] bg-white px-2.5 py-1.5 font-medium text-[#1C1917]"
+                        className="cursor-pointer rounded border border-[#CA8A04] bg-[#FACC15] px-2.5 py-1.5 font-bold text-[#052E16]"
                       >
                         {copiedField === 'cnpj' ? 'Copiado' : 'Copiar'}
                       </button>
@@ -727,38 +758,45 @@ export function DonationModal({
               </div>
 
               <div className="lg:col-span-6">
-                <div className="rounded-lg border border-[#E2DDD3] bg-white p-5">
-                  <h3 className="font-serif text-lg font-semibold text-[#1C1917]">
+                <div className="rounded-lg border-2 border-[#BBF7D0] bg-white p-5">
+                  <h3 className="font-serif text-lg font-semibold text-[#052E16]">
                     Cadastro no Banco de Doadores Mensais
                   </h3>
 
-                  {monthlySuccessUrl ? (
-                    <div className="mt-4 space-y-4 rounded-lg border border-[#14532D]/30 bg-[#FBF9F5] p-5">
+                  {createdMonthlyDonor ? (
+                    <div className="mt-4 space-y-4 rounded-lg border-2 border-[#15803D] bg-[#F0FDF4] p-5">
                       <div className="flex items-start gap-3">
-                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#14532D]" />
-                        <div>
-                          <p className="font-serif text-lg font-semibold text-[#1C1917]">
-                            Doador mensal cadastrado!
+                        <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[#15803D]" />
+                        <div className="min-w-0 flex-1">
+                          <p className="font-serif text-lg font-semibold text-[#052E16]">
+                            Recibo de Adesão Mensal Gerado!
                           </p>
-                          <p className="mt-1 text-xs text-[#44403C]">
-                            Seu nome já consta no Banco de Doadores Mensais e no livro contábil do
-                            Painel Administrativo.
+                          <p className="mt-1 text-xs text-[#14532D]">
+                            {createdMonthlyDonor.name} ·{' '}
+                            <span className="font-mono font-bold text-[#15803D]">
+                              R${' '}
+                              {createdMonthlyDonor.monthlyAmountBRL.toFixed(2).replace('.', ',')}
+                              /mês
+                            </span>{' '}
+                            (dia {String(createdMonthlyDonor.dueDay).padStart(2, '0')})
                           </p>
                         </div>
                       </div>
                       <a
-                        href={monthlySuccessUrl}
+                        href={buildMonthlyDonorWhatsappUrl(createdMonthlyDonor)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-md bg-[#14532D] px-4 py-2 text-xs font-semibold text-white"
+                        className="inline-flex min-h-[42px] w-full items-center justify-center gap-2 rounded-md bg-[#15803D] px-4 py-2 text-xs font-semibold text-white hover:bg-[#14532D]"
                       >
-                        <MessageCircle className="h-4 w-4" />
-                        <span>Enviar comprovante/adesão via WhatsApp ({PIX_INFO.pixPhoneDisplay})</span>
+                        <MessageCircle className="h-4 w-4 text-[#FEF08A]" />
+                        <span>
+                          Enviar Recibo de Adesão via WhatsApp ({PIX_INFO.pixPhoneDisplay})
+                        </span>
                       </a>
                       <button
                         type="button"
-                        onClick={() => setMonthlySuccessUrl(null)}
-                        className="cursor-pointer text-xs font-medium text-[#57534E] hover:underline"
+                        onClick={() => setCreatedMonthlyDonor(null)}
+                        className="cursor-pointer text-xs font-semibold text-[#854D0E] hover:underline"
                       >
                         Cadastrar outro doador mensal
                       </button>
@@ -766,7 +804,7 @@ export function DonationModal({
                   ) : (
                     <form onSubmit={handleRegisterMonthlyDonor} className="mt-4 space-y-3.5">
                       <div>
-                        <label htmlFor="md-name" className="block text-xs font-medium text-[#44403C]">
+                        <label htmlFor="md-name" className="block text-xs font-semibold text-[#14532D]">
                           Nome completo do doador
                         </label>
                         <input
@@ -776,13 +814,13 @@ export function DonationModal({
                           value={monthlyName}
                           onChange={(e) => setMonthlyName(e.target.value)}
                           placeholder="Seu nome ou empresa"
-                          className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 text-sm"
+                          className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                         />
                       </div>
 
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
-                          <label htmlFor="md-email" className="block text-xs font-medium text-[#44403C]">
+                          <label htmlFor="md-email" className="block text-xs font-semibold text-[#14532D]">
                             E-mail
                           </label>
                           <input
@@ -792,11 +830,11 @@ export function DonationModal({
                             value={monthlyEmail}
                             onChange={(e) => setMonthlyEmail(e.target.value)}
                             placeholder="voce@email.com"
-                            className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 text-sm"
+                            className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                           />
                         </div>
                         <div>
-                          <label htmlFor="md-phone" className="block text-xs font-medium text-[#44403C]">
+                          <label htmlFor="md-phone" className="block text-xs font-semibold text-[#14532D]">
                             Telefone / WhatsApp
                           </label>
                           <input
@@ -806,21 +844,21 @@ export function DonationModal({
                             value={monthlyPhone}
                             onChange={(e) => setMonthlyPhone(e.target.value)}
                             placeholder="(68) 99900-0000"
-                            className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 text-sm"
+                            className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                           />
                         </div>
                       </div>
 
                       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div>
-                          <label htmlFor="md-due" className="block text-xs font-medium text-[#44403C]">
+                          <label htmlFor="md-due" className="block text-xs font-semibold text-[#14532D]">
                             Dia mensal preferencial
                           </label>
                           <select
                             id="md-due"
                             value={monthlyDueDay}
                             onChange={(e) => setMonthlyDueDay(Number(e.target.value))}
-                            className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 text-sm"
+                            className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                           >
                             <option value={5}>Todo dia 05</option>
                             <option value={10}>Todo dia 10</option>
@@ -829,7 +867,7 @@ export function DonationModal({
                           </select>
                         </div>
                         <div>
-                          <label htmlFor="md-pix-chan" className="block text-xs font-medium text-[#44403C]">
+                          <label htmlFor="md-pix-chan" className="block text-xs font-semibold text-[#14532D]">
                             Chave PIX utilizada
                           </label>
                           <select
@@ -842,7 +880,7 @@ export function DonationModal({
                                   | 'Telefone +55 68 9958-7200'
                               )
                             }
-                            className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 text-sm"
+                            className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                           >
                             <option value="Telefone +55 68 9958-7200">
                               Telefone +55 68 9958-7200
@@ -854,19 +892,19 @@ export function DonationModal({
                         </div>
                       </div>
 
-                      <label className="flex items-center gap-2 pt-1 text-xs text-[#44403C]">
+                      <label className="flex items-center gap-2 pt-1 text-xs font-medium text-[#14532D]">
                         <input
                           type="checkbox"
                           checked={monthlyPaidNow}
                           onChange={(e) => setMonthlyPaidNow(e.target.checked)}
-                          className="h-4 w-4 accent-[#14532D]"
+                          className="h-4 w-4 accent-[#15803D]"
                         />
                         <span>Já realizei o primeiro PIX deste mês</span>
                       </label>
 
                       <button
                         type="submit"
-                        className="inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-md bg-[#14532D] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#0F3F22]"
+                        className="inline-flex min-h-[44px] w-full cursor-pointer items-center justify-center rounded-md border border-[#CA8A04] bg-[#FACC15] px-5 py-2.5 text-sm font-bold text-[#052E16] hover:bg-[#EAB308]"
                       >
                         Confirmar Adesão Mensal (R${' '}
                         {effectiveMonthlyAmount.toFixed(2).replace('.', ',')}/mês)
@@ -881,18 +919,18 @@ export function DonationModal({
           {tab === 'pickup' && (
             <form onSubmit={handleSchedulePickup} className="grid grid-cols-1 gap-8 lg:grid-cols-12">
               <div className="space-y-3 lg:col-span-6">
-                <p className="text-xs font-medium uppercase tracking-widest text-[#14532D]">
+                <p className="text-xs font-semibold uppercase tracking-widest text-[#15803D]">
                   1. Lista de produtos para recebimento
                 </p>
-                <div className="max-h-[360px] divide-y divide-[#E2DDD3] overflow-y-auto rounded-lg border border-[#E2DDD3] bg-white px-4">
+                <div className="max-h-[360px] divide-y divide-[#DCFCE7] overflow-y-auto rounded-lg border-2 border-[#BBF7D0] bg-[#F0FDF4] px-4">
                   {activeProducts.map((item) => {
                     const qty = selectedQuantities[item.id] ?? 0;
                     return (
                       <div key={item.id} className="flex items-center justify-between gap-3 py-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-[#1C1917]">{item.name}</p>
-                          <p className="text-xs text-[#78716C]">
-                            {item.category} · {item.priority}
+                          <p className="text-sm font-semibold text-[#052E16]">{item.name}</p>
+                          <p className="text-xs text-[#15803D]">
+                            {item.category} · <span className="text-[#854D0E]">{item.priority}</span>
                           </p>
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -906,9 +944,9 @@ export function DonationModal({
                               const val = Math.max(0, Number(e.target.value) || 0);
                               setSelectedQuantities((prev) => ({ ...prev, [item.id]: val }));
                             }}
-                            className="h-9 w-16 rounded border border-[#D6CEBE] bg-[#FBF9F5] px-2 text-right font-mono text-xs tabular-nums text-[#1C1917]"
+                            className="h-9 w-16 rounded border border-[#86EFAC] bg-white px-2 text-right font-mono text-xs tabular-nums text-[#052E16]"
                           />
-                          <span className="w-16 text-xs text-[#57534E]">{item.unit}</span>
+                          <span className="w-16 text-xs text-[#14532D]">{item.unit}</span>
                         </div>
                       </div>
                     );
@@ -916,7 +954,7 @@ export function DonationModal({
                 </div>
 
                 <div>
-                  <label htmlFor="modal-custom-items" className="block text-xs font-medium text-[#44403C]">
+                  <label htmlFor="modal-custom-items" className="block text-xs font-semibold text-[#14532D]">
                     Outros itens ou observação dos produtos
                   </label>
                   <input
@@ -925,18 +963,18 @@ export function DonationModal({
                     value={customItemsText}
                     onChange={(e) => setCustomItemsText(e.target.value)}
                     placeholder="Ex.: 2 cestas básicas, 10L de leite..."
-                    className="mt-1 min-h-[40px] w-full rounded-md border border-[#D6CEBE] bg-white px-3 py-2 text-sm text-[#1C1917]"
+                    className="mt-1 min-h-[40px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                   />
                 </div>
               </div>
 
               <div className="space-y-4 lg:col-span-6">
-                <p className="text-xs font-medium uppercase tracking-widest text-[#14532D]">
+                <p className="text-xs font-semibold uppercase tracking-widest text-[#15803D]">
                   2. Dados do colaborador para agendamento
                 </p>
 
                 <div>
-                  <label htmlFor="modal-collab-name" className="block text-xs font-medium text-[#44403C]">
+                  <label htmlFor="modal-collab-name" className="block text-xs font-semibold text-[#14532D]">
                     Nome do colaborador
                   </label>
                   <input
@@ -946,13 +984,13 @@ export function DonationModal({
                     value={collabName}
                     onChange={(e) => setCollabName(e.target.value)}
                     placeholder="Nome completo"
-                    className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-white px-3 py-2 text-sm text-[#1C1917]"
+                    className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="modal-collab-email" className="block text-xs font-medium text-[#44403C]">
+                    <label htmlFor="modal-collab-email" className="block text-xs font-semibold text-[#14532D]">
                       E-mail
                     </label>
                     <input
@@ -962,11 +1000,11 @@ export function DonationModal({
                       value={collabEmail}
                       onChange={(e) => setCollabEmail(e.target.value)}
                       placeholder="colaborador@email.com"
-                      className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-white px-3 py-2 text-sm text-[#1C1917]"
+                      className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                     />
                   </div>
                   <div>
-                    <label htmlFor="modal-collab-phone" className="block text-xs font-medium text-[#44403C]">
+                    <label htmlFor="modal-collab-phone" className="block text-xs font-semibold text-[#14532D]">
                       Telefone / WhatsApp
                     </label>
                     <input
@@ -976,13 +1014,13 @@ export function DonationModal({
                       value={collabPhone}
                       onChange={(e) => setCollabPhone(e.target.value)}
                       placeholder="(68) 99900-0000"
-                      className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-white px-3 py-2 text-sm text-[#1C1917]"
+                      className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="modal-pickup-addr" className="block text-xs font-medium text-[#44403C]">
+                  <label htmlFor="modal-pickup-addr" className="block text-xs font-semibold text-[#14532D]">
                     Endereço para coleta em Plácido de Castro
                   </label>
                   <input
@@ -992,13 +1030,13 @@ export function DonationModal({
                     value={pickupAddress}
                     onChange={(e) => setPickupAddress(e.target.value)}
                     placeholder="Rua, número, bairro ou ramal"
-                    className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-white px-3 py-2 text-sm text-[#1C1917]"
+                    className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="modal-pickup-date" className="block text-xs font-medium text-[#44403C]">
+                    <label htmlFor="modal-pickup-date" className="block text-xs font-semibold text-[#14532D]">
                       Data preferencial
                     </label>
                     <input
@@ -1006,11 +1044,11 @@ export function DonationModal({
                       type="date"
                       value={preferredDate}
                       onChange={(e) => setPreferredDate(e.target.value)}
-                      className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-white px-3 py-2 font-mono text-sm text-[#1C1917]"
+                      className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 font-mono text-sm text-[#052E16]"
                     />
                   </div>
                   <div>
-                    <label htmlFor="modal-pickup-shift" className="block text-xs font-medium text-[#44403C]">
+                    <label htmlFor="modal-pickup-shift" className="block text-xs font-semibold text-[#14532D]">
                       Turno
                     </label>
                     <select
@@ -1024,7 +1062,7 @@ export function DonationModal({
                             | 'Sábado (08h–12h)'
                         )
                       }
-                      className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-white px-3 py-2 text-sm text-[#1C1917]"
+                      className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                     >
                       <option value="Manhã (08h–12h)">Manhã (08h–12h)</option>
                       <option value="Tarde (14h–18h)">Tarde (14h–18h)</option>
@@ -1034,31 +1072,50 @@ export function DonationModal({
                 </div>
 
                 {pickupError && (
-                  <p role="alert" className="text-xs font-medium text-[#9A3412]">
+                  <p
+                    role="alert"
+                    className="rounded border border-[#EAB308] bg-[#FEFCE8] px-3 py-2 text-xs font-semibold text-[#854D0E]"
+                  >
                     {pickupError}
                   </p>
                 )}
 
-                {pickupSubmittedUrl ? (
-                  <div className="space-y-3 rounded-lg border border-[#14532D]/30 bg-white p-4">
-                    <p className="text-sm font-semibold text-[#14532D]">
-                      Coleta registrada no painel administrativo!
-                    </p>
+                {createdPickupReceipt ? (
+                  <div className="space-y-3 rounded-lg border-2 border-[#15803D] bg-[#F0FDF4] p-4">
+                    <div>
+                      <p className="text-sm font-semibold text-[#15803D]">
+                        Recibo de Agendamento de Coleta Registrado!
+                      </p>
+                      <p className="mt-0.5 font-mono text-xs font-semibold text-[#854D0E]">
+                        Protocolo: {createdPickupReceipt.id.toUpperCase()} ·{' '}
+                        {createdPickupReceipt.preferredDate} ({createdPickupReceipt.preferredShift})
+                      </p>
+                    </div>
                     <a
-                      href={pickupSubmittedUrl}
+                      href={buildPickupWhatsappUrl(createdPickupReceipt)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-[#14532D] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#0F3F22]"
+                      className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-[#15803D] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#14532D]"
                     >
-                      <span>Enviar agendamento no WhatsApp ({PIX_INFO.pickupWhatsappDisplay})</span>
-                      <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
+                      <MessageCircle className="h-4 w-4 text-[#FEF08A]" aria-hidden="true" />
+                      <span>
+                        Enviar Recibo da Coleta no WhatsApp ({PIX_INFO.pickupWhatsappDisplay})
+                      </span>
+                      <ArrowUpRight className="h-4 w-4 text-[#FEF08A]" aria-hidden="true" />
                     </a>
+                    <button
+                      type="button"
+                      onClick={() => setCreatedPickupReceipt(null)}
+                      className="cursor-pointer text-xs font-semibold text-[#854D0E] hover:underline"
+                    >
+                      Agendar outra coleta
+                    </button>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2.5 pt-2 sm:flex-row">
                     <button
                       type="submit"
-                      className="inline-flex min-h-[44px] flex-1 cursor-pointer items-center justify-center rounded-md bg-[#14532D] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#0F3F22]"
+                      className="inline-flex min-h-[44px] flex-1 cursor-pointer items-center justify-center rounded-md border border-[#CA8A04] bg-[#FACC15] px-4 py-2.5 text-xs font-bold text-[#052E16] hover:bg-[#EAB308]"
                     >
                       Registrar Agendamento
                     </button>
@@ -1076,7 +1133,7 @@ export function DonationModal({
                       })}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border border-[#14532D] bg-white px-4 py-2.5 text-xs font-semibold text-[#14532D] hover:bg-[#F4F0E8] whitespace-nowrap shrink-0"
+                      className="inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-md border-2 border-[#15803D] bg-white px-4 py-2.5 text-xs font-semibold text-[#15803D] hover:bg-[#F0FDF4] whitespace-nowrap shrink-0"
                     >
                       <span>WhatsApp {PIX_INFO.pickupWhatsappDisplay}</span>
                       <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />

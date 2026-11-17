@@ -52,6 +52,7 @@ export const OFFICIAL_ASSETS = {
   logo: '/assets/aistudio/logo_marca_ac506922.jpg',
   ebookPdf:
     '/assets/aistudio/E-book_Hist_rico_-_Associa__o_Recanto_Social_Bom_Pastor__1__6c01c77d.pdf',
+  whatsappButton: '/assets/aistudio/IMG_2dced71e-de00-4e7c-922f-85788756b2b6_e18b4794.png',
 };
 
 export const INSTITUTION_PROFILE = {

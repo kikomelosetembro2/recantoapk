@@ -16,9 +16,9 @@ export function DonateButton({
   className = '',
 }: DonateButtonProps) {
   const variantClasses = {
-    primary: 'bg-[#9A3412] text-white hover:bg-[#7C2D12] border border-transparent',
-    accent: 'bg-[#14532D] text-white hover:bg-[#0F3F22] border border-transparent',
-    outline: 'bg-white text-[#9A3412] border border-[#9A3412]/40 hover:bg-[#FFF7ED]',
+    primary: 'bg-[#FACC15] text-[#052E16] hover:bg-[#EAB308] border border-[#CA8A04]',
+    accent: 'bg-[#15803D] text-white hover:bg-[#14532D] border border-transparent',
+    outline: 'bg-white text-[#14532D] border border-[#15803D] hover:bg-[#F0FDF4]',
   }[variant];
 
   return (

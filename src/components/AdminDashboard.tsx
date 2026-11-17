@@ -7,42 +7,60 @@ import {
   Download,
   LayoutDashboard,
   MessageCircle,
+  Newspaper,
   Package,
+  PenSquare,
   Plus,
   Search,
   Trash2,
   Truck,
   Wallet,
 } from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from 'react';
 import {
   AccountingKind,
+  buildAllDonationsWhatsappUrl,
+  buildAllPickupsWhatsappUrl,
+  buildDonationReceiptWhatsappUrl,
   buildMonthlyDonorWhatsappUrl,
   buildPickupWhatsappUrl,
   DonationProductItem,
   DonationStatus,
   DonationType,
   MonthlyDonorStatus,
+  NewsPostCategory,
+  NewsPostRecord,
   PickupItemSelection,
   PickupStatus,
   PIX_INFO,
   ProductCategory,
   useDonationsStore,
 } from '../data/donationsStore';
+import { DOCUMENTARY_FIGURES, OFFICIAL_ASSETS } from '../data/institutionalData';
+import { PWAInstallButton } from './PWAInstallButton';
+
+export type AdminTab =
+  | 'overview'
+  | 'news'
+  | 'receipts'
+  | 'monthly-donors'
+  | 'accounting'
+  | 'pickups'
+  | 'products';
 
 interface AdminDashboardProps {
   onExitAdmin: () => void;
+  initialTab?: AdminTab;
 }
 
-type AdminTab = 'overview' | 'receipts' | 'monthly-donors' | 'accounting' | 'pickups' | 'products';
-
-export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
+export function AdminDashboard({ onExitAdmin, initialTab = 'overview' }: AdminDashboardProps) {
   const {
     products,
     donations,
     pickups,
     monthlyDonors,
     accountingEntries,
+    newsPosts,
     addDonation,
     updateDonationStatus,
     deleteDonation,
@@ -57,12 +75,32 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
     updatePickupStatus,
     addProductItem,
     updateProductItem,
+    addNewsPost,
+    updateNewsPost,
+    deleteNewsPost,
   } = useDonationsStore();
 
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTab);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'Todas' | DonationStatus>('Todas');
   const [typeFilter, setTypeFilter] = useState<'Todos' | DonationType>('Todos');
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
+  // News management state
+  const [showNewsForm, setShowNewsForm] = useState(initialTab === 'news');
+  const [editingNewsId, setEditingNewsId] = useState<string | null>(null);
+  const [newsTitle, setNewsTitle] = useState('');
+  const [newsCategory, setNewsCategory] = useState<NewsPostCategory>('Ação Comunitária');
+  const [newsDate, setNewsDate] = useState(new Date().toISOString().slice(0, 10));
+  const [newsLocation, setNewsLocation] = useState('Sede Bairro Olaria · Plácido de Castro, AC');
+  const [newsMetric, setNewsMetric] = useState('');
+  const [newsSummary, setNewsSummary] = useState('');
+  const [newsFullText, setNewsFullText] = useState('');
+  const [newsImageSrc, setNewsImageSrc] = useState('/assets/extracted/fig1_sopao_comunitario.jpg');
+  const [newsPublished, setNewsPublished] = useState(true);
 
   // Monthly Donors filters & form
   const [monthlyFilter, setMonthlyFilter] = useState<'Todos' | MonthlyDonorStatus>('Todos');
@@ -376,8 +414,85 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
     setNewProductName('');
   };
 
+  const resetNewsForm = () => {
+    setEditingNewsId(null);
+    setNewsTitle('');
+    setNewsCategory('Ação Comunitária');
+    setNewsDate(new Date().toISOString().slice(0, 10));
+    setNewsLocation('Sede Bairro Olaria · Plácido de Castro, AC');
+    setNewsMetric('');
+    setNewsSummary('');
+    setNewsFullText('');
+    setNewsImageSrc('/assets/extracted/fig1_sopao_comunitario.jpg');
+    setNewsPublished(true);
+  };
+
+  const handleNewsFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const maxWidth = 900;
+        const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          setNewsImageSrc(canvas.toDataURL('image/jpeg', 0.82));
+        }
+      };
+      if (typeof reader.result === 'string') {
+        img.src = reader.result;
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleEditNewsClick = (post: NewsPostRecord) => {
+    setEditingNewsId(post.id);
+    setNewsTitle(post.title);
+    setNewsCategory(post.category);
+    setNewsDate(post.publishedAt);
+    setNewsLocation(post.location);
+    setNewsMetric(post.highlightMetric ?? '');
+    setNewsSummary(post.summary);
+    setNewsFullText(post.fullText);
+    setNewsImageSrc(post.imageSrc || OFFICIAL_ASSETS.logo);
+    setNewsPublished(post.published);
+    setShowNewsForm(true);
+  };
+
+  const handleSaveNewsSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    const payload = {
+      publishedAt: newsDate,
+      title: newsTitle.trim(),
+      category: newsCategory,
+      location: newsLocation.trim() || 'Plácido de Castro, AC',
+      summary: newsSummary.trim(),
+      fullText: newsFullText.trim() || newsSummary.trim(),
+      imageSrc: newsImageSrc.trim() || OFFICIAL_ASSETS.logo,
+      highlightMetric: newsMetric.trim() || undefined,
+      published: newsPublished,
+    };
+
+    if (editingNewsId) {
+      updateNewsPost(editingNewsId, payload);
+    } else {
+      addNewsPost(payload);
+    }
+
+    resetNewsForm();
+    setShowNewsForm(false);
+  };
+
   const tabTitle: Record<AdminTab, string> = {
     overview: 'Dashboard & Contabilidade Geral',
+    news: 'Notícias e Ações Recentes',
     receipts: 'Controle de Recebimento de Doações',
     'monthly-donors': 'Banco de Doadores Mensais (PIX)',
     accounting: 'Contabilidade & Balancete',
@@ -386,22 +501,25 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#F8FAFC] text-[#0F172A]">
+    <div className="flex min-h-screen bg-[#F0FDF4] text-[#052E16]">
       {/* Left Sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col justify-between border-r border-slate-200 bg-white lg:flex">
+      <aside className="hidden w-64 shrink-0 flex-col justify-between border-r-2 border-[#BBF7D0] bg-white lg:flex">
         <div>
-          <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-4">
+          <div className="h-1 w-full bg-[#FACC15]" aria-hidden="true" />
+          <div className="flex items-center gap-3 border-b border-[#BBF7D0] px-4 py-4">
             <img
               src="/assets/aistudio/logo_marca_ac506922.jpg"
               alt="Logo Projeto Sopão Acre"
               referrerPolicy="no-referrer"
-              className="h-10 w-10 shrink-0 rounded-full border border-[#14532D]/30 bg-white object-cover"
+              className="h-11 w-11 shrink-0 rounded-full border-2 border-[#15803D] bg-white object-cover"
             />
             <div className="min-w-0">
               <p className="font-serif text-sm font-bold leading-snug text-[#14532D]">
                 Associação Recanto Social Bom Pastor
               </p>
-              <p className="mt-0.5 text-[11px] text-slate-500">Painel Administrativo</p>
+              <p className="mt-0.5 text-[11px] font-semibold text-[#854D0E]">
+                Painel Administrativo
+              </p>
             </div>
           </div>
 
@@ -409,10 +527,10 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
             <button
               type="button"
               onClick={() => setActiveTab('overview')}
-              className={`flex w-full cursor-pointer items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-xs font-medium transition-colors ${
+              className={`flex w-full cursor-pointer items-center gap-2.5 rounded-md px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
                 activeTab === 'overview'
-                  ? 'bg-[#14532D] text-white'
-                  : 'text-slate-700 hover:bg-slate-100'
+                  ? 'bg-[#15803D] text-white'
+                  : 'text-[#14532D] hover:bg-[#F0FDF4]'
               }`}
             >
               <LayoutDashboard className="h-4 w-4 shrink-0" aria-hidden="true" />
@@ -421,18 +539,36 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
 
             <button
               type="button"
+              onClick={() => setActiveTab('news')}
+              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
+                activeTab === 'news'
+                  ? 'bg-[#15803D] text-white'
+                  : 'text-[#14532D] hover:bg-[#F0FDF4]'
+              }`}
+            >
+              <span className="flex items-center gap-2.5">
+                <Newspaper className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>Notícias &amp; Ações</span>
+              </span>
+              <span className="font-mono text-[11px] tabular-nums opacity-85">
+                {newsPosts.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('accounting')}
-              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-xs font-medium transition-colors ${
+              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
                 activeTab === 'accounting'
-                  ? 'bg-[#14532D] text-white'
-                  : 'text-slate-700 hover:bg-slate-100'
+                  ? 'bg-[#15803D] text-white'
+                  : 'text-[#14532D] hover:bg-[#F0FDF4]'
               }`}
             >
               <span className="flex items-center gap-2.5">
                 <BookMarked className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>Contabilidade</span>
               </span>
-              <span className="font-mono text-[11px] tabular-nums opacity-80">
+              <span className="font-mono text-[11px] tabular-nums opacity-85">
                 {accountingEntries.length}
               </span>
             </button>
@@ -440,17 +576,17 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
             <button
               type="button"
               onClick={() => setActiveTab('monthly-donors')}
-              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-xs font-medium transition-colors ${
+              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
                 activeTab === 'monthly-donors'
-                  ? 'bg-[#14532D] text-white'
-                  : 'text-slate-700 hover:bg-slate-100'
+                  ? 'bg-[#15803D] text-white'
+                  : 'text-[#14532D] hover:bg-[#F0FDF4]'
               }`}
             >
               <span className="flex items-center gap-2.5">
                 <CalendarClock className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>Doadores Mensais</span>
               </span>
-              <span className="font-mono text-[11px] tabular-nums opacity-80">
+              <span className="font-mono text-[11px] tabular-nums opacity-85">
                 {monthlyDonors.length}
               </span>
             </button>
@@ -458,17 +594,17 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
             <button
               type="button"
               onClick={() => setActiveTab('receipts')}
-              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-xs font-medium transition-colors ${
+              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
                 activeTab === 'receipts'
-                  ? 'bg-[#14532D] text-white'
-                  : 'text-slate-700 hover:bg-slate-100'
+                  ? 'bg-[#15803D] text-white'
+                  : 'text-[#14532D] hover:bg-[#F0FDF4]'
               }`}
             >
               <span className="flex items-center gap-2.5">
                 <Wallet className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>Recebimento de Doações</span>
               </span>
-              <span className="font-mono text-[11px] tabular-nums opacity-80">
+              <span className="font-mono text-[11px] tabular-nums opacity-85">
                 {donations.length}
               </span>
             </button>
@@ -476,17 +612,17 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
             <button
               type="button"
               onClick={() => setActiveTab('pickups')}
-              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-xs font-medium transition-colors ${
+              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
                 activeTab === 'pickups'
-                  ? 'bg-[#14532D] text-white'
-                  : 'text-slate-700 hover:bg-slate-100'
+                  ? 'bg-[#15803D] text-white'
+                  : 'text-[#14532D] hover:bg-[#F0FDF4]'
               }`}
             >
               <span className="flex items-center gap-2.5">
                 <Truck className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>Agendamento de Coleta</span>
               </span>
-              <span className="font-mono text-[11px] tabular-nums opacity-80">
+              <span className="font-mono text-[11px] tabular-nums opacity-85">
                 {pickups.length}
               </span>
             </button>
@@ -494,33 +630,33 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
             <button
               type="button"
               onClick={() => setActiveTab('products')}
-              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-xs font-medium transition-colors ${
+              className={`flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-3 py-2.5 text-left text-xs font-semibold transition-colors ${
                 activeTab === 'products'
-                  ? 'bg-[#14532D] text-white'
-                  : 'text-slate-700 hover:bg-slate-100'
+                  ? 'bg-[#15803D] text-white'
+                  : 'text-[#14532D] hover:bg-[#F0FDF4]'
               }`}
             >
               <span className="flex items-center gap-2.5">
                 <Package className="h-4 w-4 shrink-0" aria-hidden="true" />
                 <span>Lista de Produtos</span>
               </span>
-              <span className="font-mono text-[11px] tabular-nums opacity-80">
+              <span className="font-mono text-[11px] tabular-nums opacity-85">
                 {products.length}
               </span>
             </button>
           </nav>
         </div>
 
-        <div className="border-t border-slate-200 p-4 space-y-3">
-          <div className="space-y-1 text-xs text-slate-500">
-            <p className="font-medium text-slate-800">Chaves PIX Oficiais</p>
+        <div className="border-t border-[#BBF7D0] bg-[#FEFCE8] p-4 space-y-3">
+          <div className="space-y-1 text-xs text-[#14532D]">
+            <p className="font-bold text-[#854D0E]">Chaves PIX Oficiais</p>
             <p className="font-mono tabular-nums">CNPJ: {PIX_INFO.pixKey}</p>
             <p className="font-mono tabular-nums">Tel: {PIX_INFO.pixPhoneDisplay}</p>
           </div>
           <button
             type="button"
             onClick={onExitAdmin}
-            className="flex min-h-[40px] w-full cursor-pointer items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50"
+            className="flex min-h-[40px] w-full cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-[#15803D] bg-white px-3 py-2 text-xs font-semibold text-[#15803D] hover:bg-[#F0FDF4]"
           >
             <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Voltar ao Portal Público</span>
@@ -531,12 +667,12 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
       {/* Main Content Workspace */}
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top Breadcrumb Bar */}
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-4">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b-2 border-[#BBF7D0] bg-white px-6 py-4">
           <div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs font-medium text-[#15803D]">
               Administração / Financeiro &amp; Doações / {tabTitle[activeTab]}
             </p>
-            <h1 className="font-serif text-xl font-semibold text-slate-900">
+            <h1 className="font-serif text-xl font-semibold text-[#052E16]">
               {tabTitle[activeTab]}
             </h1>
           </div>
@@ -545,16 +681,18 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
             <button
               type="button"
               onClick={onExitAdmin}
-              className="inline-flex min-h-[38px] cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 lg:hidden"
+              className="inline-flex min-h-[38px] cursor-pointer items-center gap-1.5 rounded-md border border-[#86EFAC] bg-white px-3 py-1.5 text-xs font-semibold text-[#14532D] hover:bg-[#F0FDF4] lg:hidden"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
               <span>Portal</span>
             </button>
 
+            <PWAInstallButton compact />
+
             <button
               type="button"
               onClick={handleExportCsv}
-              className="inline-flex min-h-[38px] cursor-pointer items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[38px] cursor-pointer items-center gap-1.5 rounded-md border border-[#86EFAC] bg-white px-3.5 py-1.5 text-xs font-semibold text-[#14532D] hover:bg-[#F0FDF4] whitespace-nowrap shrink-0"
             >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
               <span>{activeTab === 'accounting' ? 'Exportar Balancete CSV' : 'Exportar CSV'}</span>
@@ -566,19 +704,20 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                 setActiveTab('accounting');
                 setShowNewAccForm(true);
               }}
-              className="inline-flex min-h-[38px] cursor-pointer items-center gap-1.5 rounded-md bg-[#14532D] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#0F3F22] whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[38px] cursor-pointer items-center gap-1.5 rounded-md bg-[#15803D] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#14532D] whitespace-nowrap shrink-0"
             >
-              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+              <Plus className="h-3.5 w-3.5 text-[#FEF08A]" aria-hidden="true" />
               <span>Novo Lançamento Contábil</span>
             </button>
           </div>
         </header>
 
         {/* Mobile Tab Switcher */}
-        <div className="flex gap-1 overflow-x-auto border-b border-slate-200 bg-slate-100 p-2 lg:hidden">
+        <div className="flex gap-1 overflow-x-auto border-b border-[#BBF7D0] bg-[#DCFCE7] p-2 lg:hidden">
           {(
             [
               ['overview', 'Dashboard'],
+              ['news', 'Notícias'],
               ['accounting', 'Contabilidade'],
               ['monthly-donors', 'Mensalistas'],
               ['receipts', 'Recebimentos'],
@@ -590,8 +729,8 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
               key={id}
               type="button"
               onClick={() => setActiveTab(id)}
-              className={`cursor-pointer rounded px-3 py-1.5 text-xs font-medium whitespace-nowrap shrink-0 ${
-                activeTab === id ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+              className={`cursor-pointer rounded px-3 py-1.5 text-xs font-semibold whitespace-nowrap shrink-0 ${
+                activeTab === id ? 'bg-[#15803D] text-white shadow-sm' : 'text-[#14532D]'
               }`}
             >
               {label}
@@ -602,47 +741,47 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
         <main className="flex-1 space-y-6 p-6">
           {/* KPI Summary Strip (Accounting + Monthly Donors + Operations) */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <p className="text-xs font-medium text-slate-500">Saldo Líquido Contábil</p>
+            <div className="rounded-lg border-2 border-[#BBF7D0] bg-white p-5">
+              <p className="text-xs font-semibold text-[#15803D]">Saldo Líquido Contábil</p>
               <p
-                className={`mt-2 font-mono text-2xl font-semibold tabular-nums ${
-                  metrics.netBalance >= 0 ? 'text-[#16A34A]' : 'text-[#DC2626]'
+                className={`mt-2 font-mono text-2xl font-bold tabular-nums ${
+                  metrics.netBalance >= 0 ? 'text-[#15803D]' : 'text-[#854D0E]'
                 }`}
               >
                 R$ {metrics.netBalance.toFixed(2).replace('.', ',')}
               </p>
-              <p className="mt-1 font-mono text-[11px] tabular-nums text-slate-500">
+              <p className="mt-1 font-mono text-[11px] tabular-nums text-[#166534]">
                 Entradas R$ {metrics.totalEntradas.toFixed(2).replace('.', ',')} · Saídas R${' '}
                 {metrics.totalSaidas.toFixed(2).replace('.', ',')}
               </p>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <p className="text-xs font-medium text-slate-500">Receita Mensal Recorrente (PIX)</p>
-              <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-[#14532D]">
+            <div className="rounded-lg border-2 border-[#BBF7D0] bg-white p-5">
+              <p className="text-xs font-semibold text-[#15803D]">Receita Mensal Recorrente (PIX)</p>
+              <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-[#052E16]">
                 R$ {metrics.monthlyExpectedMRR.toFixed(2).replace('.', ',')}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-[#166534]">
                 {metrics.activeMonthlyCount} doadores ativos ({metrics.monthlyPaidCount} em dia)
               </p>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <p className="text-xs font-medium text-slate-500">Doações em Conferência</p>
-              <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-[#D97706]">
+            <div className="rounded-lg border-2 border-[#FACC15] bg-[#FEFCE8] p-5">
+              <p className="text-xs font-semibold text-[#854D0E]">Doações em Conferência</p>
+              <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-[#854D0E]">
                 R$ {metrics.pendingBRL.toFixed(2).replace('.', ',')}
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs font-medium text-[#14532D]">
                 {metrics.receivedCount} doações liquidadas
               </p>
             </div>
 
-            <div className="rounded-lg border border-slate-200 bg-white p-5">
-              <p className="text-xs font-medium text-slate-500">Coletas &amp; Produtos Recebidos</p>
-              <p className="mt-2 font-mono text-2xl font-semibold tabular-nums text-slate-900">
+            <div className="rounded-lg border-2 border-[#BBF7D0] bg-white p-5">
+              <p className="text-xs font-semibold text-[#15803D]">Coletas &amp; Produtos Recebidos</p>
+              <p className="mt-2 font-mono text-2xl font-bold tabular-nums text-[#052E16]">
                 {metrics.pendingPickups} rotas · {metrics.totalProductUnits} unid
               </p>
-              <p className="mt-1 text-xs text-slate-500">
+              <p className="mt-1 text-xs text-[#166534]">
                 WhatsApp coletas: {PIX_INFO.pickupWhatsappDisplay}
               </p>
             </div>
@@ -651,75 +790,75 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
           {/* TAB 1: OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-              <div className="rounded-lg border border-slate-200 bg-white p-6 xl:col-span-5">
+              <div className="rounded-lg border-2 border-[#BBF7D0] bg-white p-6 xl:col-span-5">
                 <div className="flex items-center justify-between">
-                  <h2 className="font-serif text-lg font-semibold text-slate-900">
+                  <h2 className="font-serif text-lg font-semibold text-[#052E16]">
                     Resumo Contábil do Período
                   </h2>
                   <button
                     type="button"
                     onClick={() => setActiveTab('accounting')}
-                    className="cursor-pointer text-xs font-semibold text-[#14532D] hover:underline"
+                    className="cursor-pointer text-xs font-semibold text-[#15803D] hover:underline"
                   >
                     Abrir Livro-Razão
                   </button>
                 </div>
-                <p className="mt-1 text-xs text-slate-500">
+                <p className="mt-1 text-xs text-[#166534]">
                   Consolidado entre entradas (PIX, mensalistas, editais) e despesas da cozinha.
                 </p>
 
-                <dl className="mt-5 divide-y divide-slate-100 border-y border-slate-200 text-xs">
+                <dl className="mt-5 divide-y divide-[#DCFCE7] border-y border-[#BBF7D0] text-xs">
                   <div className="flex justify-between py-3">
-                    <dt className="text-slate-600">Total de Entradas (Receitas)</dt>
-                    <dd className="font-mono font-semibold tabular-nums text-[#16A34A]">
+                    <dt className="text-[#14532D]">Total de Entradas (Receitas)</dt>
+                    <dd className="font-mono font-bold tabular-nums text-[#15803D]">
                       + R$ {metrics.totalEntradas.toFixed(2).replace('.', ',')}
                     </dd>
                   </div>
                   <div className="flex justify-between py-3">
-                    <dt className="text-slate-600">Total de Saídas (Despesas Operacionais)</dt>
-                    <dd className="font-mono font-semibold tabular-nums text-[#DC2626]">
+                    <dt className="text-[#14532D]">Total de Saídas (Despesas Operacionais)</dt>
+                    <dd className="font-mono font-bold tabular-nums text-[#854D0E]">
                       - R$ {metrics.totalSaidas.toFixed(2).replace('.', ',')}
                     </dd>
                   </div>
                   <div className="flex justify-between py-3">
-                    <dt className="font-semibold text-slate-900">Saldo em Caixa</dt>
-                    <dd className="font-mono font-bold tabular-nums text-slate-900">
+                    <dt className="font-bold text-[#052E16]">Saldo em Caixa</dt>
+                    <dd className="font-mono font-bold tabular-nums text-[#052E16]">
                       R$ {metrics.netBalance.toFixed(2).replace('.', ',')}
                     </dd>
                   </div>
                 </dl>
 
                 <div className="mt-5 space-y-3">
-                  <p className="text-xs font-medium text-slate-700">
+                  <p className="text-xs font-semibold text-[#14532D]">
                     Canais de Entrada de Doações
                   </p>
                   {[
                     {
                       label: 'PIX (Avulso & Mensal)',
                       count: metrics.byType.pix,
-                      color: 'bg-[#14532D]',
+                      color: 'bg-[#15803D]',
                     },
                     {
                       label: 'Gateway Cartão / Boleto',
                       count: metrics.byType.gateway,
-                      color: 'bg-[#9A3412]',
+                      color: 'bg-[#EAB308]',
                     },
                     {
                       label: 'Produtos & Coletas',
                       count: metrics.byType.products,
-                      color: 'bg-slate-700',
+                      color: 'bg-[#14532D]',
                     },
                   ].map((bar) => {
                     const pct = Math.round((bar.count / Math.max(1, donations.length)) * 100);
                     return (
                       <div key={bar.label}>
                         <div className="flex justify-between text-xs">
-                          <span className="text-slate-700">{bar.label}</span>
-                          <span className="font-mono tabular-nums text-slate-600">
+                          <span className="text-[#14532D]">{bar.label}</span>
+                          <span className="font-mono tabular-nums text-[#166534]">
                             {bar.count} ({pct}%)
                           </span>
                         </div>
-                        <div className="mt-1 h-2 w-full overflow-hidden rounded bg-slate-100">
+                        <div className="mt-1 h-2 w-full overflow-hidden rounded bg-[#DCFCE7]">
                           <div className={`h-full ${bar.color}`} style={{ width: `${pct}%` }} />
                         </div>
                       </div>
@@ -728,20 +867,20 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                 </div>
               </div>
 
-              <div className="rounded-lg border border-slate-200 bg-white p-6 xl:col-span-7">
+              <div className="rounded-lg border-2 border-[#BBF7D0] bg-white p-6 xl:col-span-7">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <h2 className="font-serif text-lg font-semibold text-slate-900">
+                    <h2 className="font-serif text-lg font-semibold text-[#052E16]">
                       Últimos Lançamentos Contábeis
                     </h2>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-[#166534]">
                       Entradas de PIX, mensalidades e saídas operacionais da sede no Bairro Olaria.
                     </p>
                   </div>
                   <button
                     type="button"
                     onClick={() => setActiveTab('accounting')}
-                    className="cursor-pointer text-xs font-semibold text-[#14532D] hover:underline"
+                    className="cursor-pointer text-xs font-semibold text-[#15803D] hover:underline"
                   >
                     Ver contabilidade completa
                   </button>
@@ -750,24 +889,24 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                 <div className="mt-4 overflow-x-auto">
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
-                      <tr className="border-b border-slate-200 text-slate-500">
-                        <th className="py-2.5 pr-3 font-medium">Data</th>
-                        <th className="py-2.5 pr-3 font-medium">Descrição</th>
-                        <th className="py-2.5 pr-3 font-medium">Categoria</th>
-                        <th className="py-2.5 text-right font-medium">Valor</th>
+                      <tr className="border-b border-[#BBF7D0] text-[#15803D]">
+                        <th className="py-2.5 pr-3 font-semibold">Data</th>
+                        <th className="py-2.5 pr-3 font-semibold">Descrição</th>
+                        <th className="py-2.5 pr-3 font-semibold">Categoria</th>
+                        <th className="py-2.5 text-right font-semibold">Valor</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-[#DCFCE7]">
                       {accountingEntries.slice(0, 6).map((a) => (
-                        <tr key={a.id} className="hover:bg-slate-50">
-                          <td className="py-3 pr-3 font-mono tabular-nums text-slate-600">
+                        <tr key={a.id} className="hover:bg-[#F0FDF4]">
+                          <td className="py-3 pr-3 font-mono tabular-nums text-[#166534]">
                             {a.date}
                           </td>
-                          <td className="py-3 pr-3 font-medium text-slate-900">{a.description}</td>
-                          <td className="py-3 pr-3 text-slate-600">{a.category}</td>
+                          <td className="py-3 pr-3 font-semibold text-[#052E16]">{a.description}</td>
+                          <td className="py-3 pr-3 text-[#14532D]">{a.category}</td>
                           <td
-                            className={`py-3 text-right font-mono font-semibold tabular-nums ${
-                              a.kind === 'Entrada' ? 'text-[#16A34A]' : 'text-[#DC2626]'
+                            className={`py-3 text-right font-mono font-bold tabular-nums ${
+                              a.kind === 'Entrada' ? 'text-[#15803D]' : 'text-[#854D0E]'
                             }`}
                           >
                             {a.kind === 'Entrada' ? '+' : '-'} R${' '}
@@ -785,12 +924,12 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
           {/* TAB 2: CONTABILIDADE & BALANCETE */}
           {activeTab === 'accounting' && (
             <div className="space-y-5">
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border-2 border-[#BBF7D0] bg-white p-5">
                 <div>
-                  <h2 className="font-serif text-lg font-semibold text-slate-900">
+                  <h2 className="font-serif text-lg font-semibold text-[#052E16]">
                     Livro-Razão &amp; Prestação de Contas
                   </h2>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-[#166534]">
                     Toda doação PIX confirmada ou mensalidade liquidada entra automaticamente neste
                     balancete. Conciliados: {metrics.reconciledCount} de {accountingEntries.length}.
                   </p>
@@ -798,7 +937,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                 <button
                   type="button"
                   onClick={() => setShowNewAccForm((prev) => !prev)}
-                  className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-md bg-[#14532D] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0F3F22]"
+                  className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-md border border-[#CA8A04] bg-[#FACC15] px-4 py-2 text-xs font-bold text-[#052E16] hover:bg-[#EAB308]"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   <span>{showNewAccForm ? 'Ocultar formulário' : 'Registrar Entrada / Saída'}</span>
@@ -808,10 +947,10 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
               {showNewAccForm && (
                 <form
                   onSubmit={handleAddAccountingSubmit}
-                  className="grid grid-cols-1 gap-4 rounded-lg border border-slate-200 bg-white p-6 sm:grid-cols-12"
+                  className="grid grid-cols-1 gap-4 rounded-lg border-2 border-[#BBF7D0] bg-white p-6 sm:grid-cols-12"
                 >
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-medium text-slate-700">Tipo</label>
+                    <label className="block text-xs font-semibold text-[#14532D]">Tipo</label>
                     <select
                       value={accKind}
                       onChange={(e) => {
@@ -821,7 +960,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                           nextKind === 'Entrada' ? 'Doação Avulsa PIX' : 'Insumos do Sopão'
                         );
                       }}
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                     >
                       <option value="Entrada">Entrada (+)</option>
                       <option value="Saída">Saída (-)</option>
@@ -829,31 +968,31 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                   </div>
 
                   <div className="sm:col-span-3">
-                    <label className="block text-xs font-medium text-slate-700">Categoria</label>
+                    <label className="block text-xs font-semibold text-[#14532D]">Categoria</label>
                     <input
                       type="text"
                       required
                       value={accCategory}
                       onChange={(e) => setAccCategory(e.target.value)}
                       placeholder="Ex.: Insumos do Sopão"
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                     />
                   </div>
 
                   <div className="sm:col-span-4">
-                    <label className="block text-xs font-medium text-slate-700">Descrição</label>
+                    <label className="block text-xs font-semibold text-[#14532D]">Descrição</label>
                     <input
                       type="text"
                       required
                       value={accDescription}
                       onChange={(e) => setAccDescription(e.target.value)}
                       placeholder="Ex.: Compra de legumes e proteínas semanais"
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                     />
                   </div>
 
                   <div className="sm:col-span-3">
-                    <label className="block text-xs font-medium text-slate-700">Valor (R$)</label>
+                    <label className="block text-xs font-semibold text-[#14532D]">Valor (R$)</label>
                     <input
                       type="number"
                       step="0.01"
@@ -861,22 +1000,22 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                       value={accAmount}
                       onChange={(e) => setAccAmount(e.target.value)}
                       placeholder="0.00"
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 font-mono text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 font-mono text-sm text-[#052E16]"
                     />
                   </div>
 
                   <div className="sm:col-span-3">
-                    <label className="block text-xs font-medium text-slate-700">Data</label>
+                    <label className="block text-xs font-semibold text-[#14532D]">Data</label>
                     <input
                       type="date"
                       value={accDate}
                       onChange={(e) => setAccDate(e.target.value)}
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 font-mono text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 font-mono text-sm text-[#052E16]"
                     />
                   </div>
 
                   <div className="sm:col-span-5">
-                    <label className="block text-xs font-medium text-slate-700">
+                    <label className="block text-xs font-semibold text-[#14532D]">
                       Documento / Nota Fiscal (opcional)
                     </label>
                     <input
@@ -884,14 +1023,14 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                       value={accRefCode}
                       onChange={(e) => setAccRefCode(e.target.value)}
                       placeholder="Ex.: NF-00440 ou Comprovante PIX"
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                     />
                   </div>
 
                   <div className="flex items-end sm:col-span-4">
                     <button
                       type="submit"
-                      className="inline-flex min-h-[40px] w-full cursor-pointer items-center justify-center rounded-md bg-[#14532D] px-4 py-2 text-xs font-semibold text-white"
+                      className="inline-flex min-h-[40px] w-full cursor-pointer items-center justify-center rounded-md bg-[#15803D] px-4 py-2 text-xs font-semibold text-white hover:bg-[#14532D]"
                     >
                       Gravar Lançamento Contábil
                     </button>
@@ -899,17 +1038,17 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                 </form>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-4">
-                <div className="flex items-center gap-1 rounded-md bg-slate-100 p-1">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-[#BBF7D0] bg-white p-4">
+                <div className="flex items-center gap-1 rounded-md border border-[#BBF7D0] bg-[#DCFCE7] p-1">
                   {(['Todos', 'Entrada', 'Saída'] as const).map((k) => (
                     <button
                       key={k}
                       type="button"
                       onClick={() => setAccKindFilter(k)}
-                      className={`cursor-pointer rounded px-3 py-1.5 text-xs font-medium ${
+                      className={`cursor-pointer rounded px-3 py-1.5 text-xs font-semibold ${
                         accKindFilter === k
-                          ? 'bg-white text-slate-900 shadow-sm'
-                          : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-[#15803D] text-white shadow-sm'
+                          : 'text-[#14532D] hover:bg-white/75'
                       }`}
                     >
                       {k === 'Todos' ? 'Todos os lançamentos' : `${k}s`}
@@ -918,43 +1057,43 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                 </div>
 
                 <div className="relative">
-                  <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#15803D]" />
                   <input
                     type="search"
                     value={accSearch}
                     onChange={(e) => setAccSearch(e.target.value)}
                     placeholder="Buscar descrição, categoria ou NF..."
-                    className="min-h-[38px] w-64 rounded border border-slate-300 bg-white py-1.5 pr-3 pl-8 text-xs"
+                    className="min-h-[38px] w-64 rounded border border-[#86EFAC] bg-white py-1.5 pr-3 pl-8 text-xs text-[#052E16]"
                   />
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <div className="overflow-x-auto rounded-lg border-2 border-[#BBF7D0] bg-white">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 uppercase tracking-wider text-slate-500">
-                      <th className="px-4 py-3 font-medium">Data</th>
-                      <th className="px-4 py-3 font-medium">Doc / Ref</th>
-                      <th className="px-4 py-3 font-medium">Categoria</th>
-                      <th className="px-4 py-3 font-medium">Descrição</th>
-                      <th className="px-4 py-3 text-right font-medium">Valor (R$)</th>
-                      <th className="px-4 py-3 text-right font-medium">Conciliação</th>
+                    <tr className="border-b border-[#BBF7D0] bg-[#DCFCE7]/50 uppercase tracking-wider text-[#14532D]">
+                      <th className="px-4 py-3 font-semibold">Data</th>
+                      <th className="px-4 py-3 font-semibold">Doc / Ref</th>
+                      <th className="px-4 py-3 font-semibold">Categoria</th>
+                      <th className="px-4 py-3 font-semibold">Descrição</th>
+                      <th className="px-4 py-3 text-right font-semibold">Valor (R$)</th>
+                      <th className="px-4 py-3 text-right font-semibold">Conciliação</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[#DCFCE7]">
                     {filteredAccounting.map((entry) => (
-                      <tr key={entry.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-mono tabular-nums text-slate-600">
+                      <tr key={entry.id} className="hover:bg-[#F0FDF4]">
+                        <td className="px-4 py-3 font-mono tabular-nums text-[#166534]">
                           {entry.date}
                         </td>
-                        <td className="px-4 py-3 font-mono tabular-nums text-slate-700">
+                        <td className="px-4 py-3 font-mono tabular-nums text-[#14532D]">
                           {entry.referenceCode}
                         </td>
-                        <td className="px-4 py-3 font-medium text-slate-800">{entry.category}</td>
-                        <td className="px-4 py-3 text-slate-700">{entry.description}</td>
+                        <td className="px-4 py-3 font-semibold text-[#052E16]">{entry.category}</td>
+                        <td className="px-4 py-3 text-[#14532D]">{entry.description}</td>
                         <td
-                          className={`px-4 py-3 text-right font-mono font-semibold tabular-nums ${
-                            entry.kind === 'Entrada' ? 'text-[#16A34A]' : 'text-[#DC2626]'
+                          className={`px-4 py-3 text-right font-mono font-bold tabular-nums ${
+                            entry.kind === 'Entrada' ? 'text-[#15803D]' : 'text-[#854D0E]'
                           }`}
                         >
                           {entry.kind === 'Entrada' ? '+' : '-'} R${' '}
@@ -965,8 +1104,8 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                             <button
                               type="button"
                               onClick={() => toggleReconcileEntry(entry.id)}
-                              className={`cursor-pointer text-xs font-semibold ${
-                                entry.reconciled ? 'text-[#16A34A]' : 'text-[#D97706]'
+                              className={`cursor-pointer text-xs font-bold ${
+                                entry.reconciled ? 'text-[#15803D]' : 'text-[#854D0E]'
                               }`}
                             >
                               {entry.reconciled ? 'Conciliado' : 'Pendente'}
@@ -975,7 +1114,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                               type="button"
                               onClick={() => deleteAccountingEntry(entry.id)}
                               aria-label={`Excluir lançamento ${entry.referenceCode}`}
-                              className="cursor-pointer rounded p-1 text-slate-400 hover:text-[#DC2626]"
+                              className="cursor-pointer rounded p-1 text-[#15803D] hover:bg-[#FEFCE8] hover:text-[#854D0E]"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -992,12 +1131,12 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
           {/* TAB 3: BANCO DE DOADORES MENSAIS */}
           {activeTab === 'monthly-donors' && (
             <div className="space-y-5">
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border-2 border-[#BBF7D0] bg-white p-5">
                 <div>
-                  <h2 className="font-serif text-lg font-semibold text-slate-900">
+                  <h2 className="font-serif text-lg font-semibold text-[#052E16]">
                     Banco de Doadores Mensais (Recorrência PIX)
                   </h2>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-[#166534]">
                     Controle de mantenedores mensais via PIX CNPJ ({PIX_INFO.pixKey}) ou PIX
                     Telefone ({PIX_INFO.pixPhoneDisplay}). Ao confirmar o PIX do mês, o valor entra
                     automaticamente na contabilidade.
@@ -1006,7 +1145,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                 <button
                   type="button"
                   onClick={() => setShowNewMonthlyForm((prev) => !prev)}
-                  className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-md bg-[#14532D] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0F3F22]"
+                  className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-md border border-[#CA8A04] bg-[#FACC15] px-4 py-2 text-xs font-bold text-[#052E16] hover:bg-[#EAB308]"
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   <span>{showNewMonthlyForm ? 'Ocultar formulário' : 'Cadastrar Doador Mensal'}</span>
@@ -1016,10 +1155,10 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
               {showNewMonthlyForm && (
                 <form
                   onSubmit={handleAddMonthlyDonorSubmit}
-                  className="grid grid-cols-1 gap-4 rounded-lg border border-slate-200 bg-white p-6 sm:grid-cols-12"
+                  className="grid grid-cols-1 gap-4 rounded-lg border-2 border-[#BBF7D0] bg-white p-6 sm:grid-cols-12"
                 >
                   <div className="sm:col-span-4">
-                    <label className="block text-xs font-medium text-slate-700">
+                    <label className="block text-xs font-semibold text-[#14532D]">
                       Nome do doador mensal
                     </label>
                     <input
@@ -1027,20 +1166,20 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                       required
                       value={mdName}
                       onChange={(e) => setMdName(e.target.value)}
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                     />
                   </div>
                   <div className="sm:col-span-4">
-                    <label className="block text-xs font-medium text-slate-700">E-mail</label>
+                    <label className="block text-xs font-semibold text-[#14532D]">E-mail</label>
                     <input
                       type="email"
                       value={mdEmail}
                       onChange={(e) => setMdEmail(e.target.value)}
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                     />
                   </div>
                   <div className="sm:col-span-4">
-                    <label className="block text-xs font-medium text-slate-700">
+                    <label className="block text-xs font-semibold text-[#14532D]">
                       Telefone / WhatsApp
                     </label>
                     <input
@@ -1049,12 +1188,12 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                       value={mdPhone}
                       onChange={(e) => setMdPhone(e.target.value)}
                       placeholder="(68) 99900-0000"
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                     />
                   </div>
 
                   <div className="sm:col-span-3">
-                    <label className="block text-xs font-medium text-slate-700">
+                    <label className="block text-xs font-semibold text-[#14532D]">
                       Valor Mensal PIX (R$)
                     </label>
                     <input
@@ -1064,17 +1203,17 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                       required
                       value={mdAmount}
                       onChange={(e) => setMdAmount(e.target.value)}
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 font-mono text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 font-mono text-sm text-[#052E16]"
                     />
                   </div>
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-medium text-slate-700">
+                    <label className="block text-xs font-semibold text-[#14532D]">
                       Dia vencimento
                     </label>
                     <select
                       value={mdDueDay}
                       onChange={(e) => setMdDueDay(Number(e.target.value))}
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                     >
                       <option value={5}>Dia 05</option>
                       <option value={10}>Dia 10</option>
@@ -1083,7 +1222,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                     </select>
                   </div>
                   <div className="sm:col-span-4">
-                    <label className="block text-xs font-medium text-slate-700">
+                    <label className="block text-xs font-semibold text-[#14532D]">
                       Chave PIX escolhida
                     </label>
                     <select
@@ -1095,7 +1234,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                             | 'Telefone +55 68 9958-7200'
                         )
                       }
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                     >
                       <option value="Telefone +55 68 9958-7200">
                         Telefone +55 68 9958-7200
@@ -1107,35 +1246,35 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                   <div className="flex items-end sm:col-span-3">
                     <button
                       type="submit"
-                      className="inline-flex min-h-[40px] w-full cursor-pointer items-center justify-center rounded-md bg-[#14532D] px-4 py-2 text-xs font-semibold text-white"
+                      className="inline-flex min-h-[40px] w-full cursor-pointer items-center justify-center rounded-md bg-[#15803D] px-4 py-2 text-xs font-semibold text-white hover:bg-[#14532D]"
                     >
                       Salvar Doador Mensal
                     </button>
                   </div>
 
-                  <label className="flex items-center gap-2 text-xs text-slate-700 sm:col-span-12">
+                  <label className="flex items-center gap-2 text-xs font-medium text-[#14532D] sm:col-span-12">
                     <input
                       type="checkbox"
                       checked={mdPaidNow}
                       onChange={(e) => setMdPaidNow(e.target.checked)}
-                      className="h-4 w-4 accent-[#14532D]"
+                      className="h-4 w-4 accent-[#15803D]"
                     />
                     <span>Já recebeu o PIX deste mês (lançar na contabilidade agora)</span>
                   </label>
                 </form>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-4">
-                <div className="flex flex-wrap items-center gap-1 rounded-md bg-slate-100 p-1">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-[#BBF7D0] bg-white p-4">
+                <div className="flex flex-wrap items-center gap-1 rounded-md border border-[#BBF7D0] bg-[#DCFCE7] p-1">
                   {(['Todos', 'Em dia', 'Aguardando PIX', 'Pausado'] as const).map((st) => (
                     <button
                       key={st}
                       type="button"
                       onClick={() => setMonthlyFilter(st)}
-                      className={`cursor-pointer rounded px-3 py-1.5 text-xs font-medium ${
+                      className={`cursor-pointer rounded px-3 py-1.5 text-xs font-semibold ${
                         monthlyFilter === st
-                          ? 'bg-white text-slate-900 shadow-sm'
-                          : 'text-slate-600 hover:text-slate-900'
+                          ? 'bg-[#15803D] text-white shadow-sm'
+                          : 'text-[#14532D] hover:bg-white/75'
                       }`}
                     >
                       {st}
@@ -1144,49 +1283,49 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                 </div>
 
                 <div className="relative">
-                  <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                  <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#15803D]" />
                   <input
                     type="search"
                     value={monthlySearch}
                     onChange={(e) => setMonthlySearch(e.target.value)}
                     placeholder="Buscar doador mensal..."
-                    className="min-h-[38px] rounded border border-slate-300 bg-white py-1.5 pr-3 pl-8 text-xs"
+                    className="min-h-[38px] rounded border border-[#86EFAC] bg-white py-1.5 pr-3 pl-8 text-xs text-[#052E16]"
                   />
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <div className="overflow-x-auto rounded-lg border-2 border-[#BBF7D0] bg-white">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 uppercase tracking-wider text-slate-500">
-                      <th className="px-4 py-3 font-medium">Doador Mensal</th>
-                      <th className="px-4 py-3 font-medium">Chave PIX / Dia</th>
-                      <th className="px-4 py-3 text-right font-medium">Valor Mensal</th>
-                      <th className="px-4 py-3 text-right font-medium">Total Acumulado</th>
-                      <th className="px-4 py-3 font-medium">Status Mês</th>
-                      <th className="px-4 py-3 text-right font-medium">Ações</th>
+                    <tr className="border-b border-[#BBF7D0] bg-[#DCFCE7]/50 uppercase tracking-wider text-[#14532D]">
+                      <th className="px-4 py-3 font-semibold">Doador Mensal</th>
+                      <th className="px-4 py-3 font-semibold">Chave PIX / Dia</th>
+                      <th className="px-4 py-3 text-right font-semibold">Valor Mensal</th>
+                      <th className="px-4 py-3 text-right font-semibold">Total Acumulado</th>
+                      <th className="px-4 py-3 font-semibold">Status Mês</th>
+                      <th className="px-4 py-3 text-right font-semibold">Ações</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[#DCFCE7]">
                     {filteredMonthlyDonors.map((donor) => (
-                      <tr key={donor.id} className="hover:bg-slate-50">
+                      <tr key={donor.id} className="hover:bg-[#F0FDF4]">
                         <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900">{donor.name}</p>
-                          <p className="text-[11px] text-slate-500">
+                          <p className="font-semibold text-[#052E16]">{donor.name}</p>
+                          <p className="text-[11px] text-[#166534]">
                             {donor.email} · {donor.phone}
                           </p>
                         </td>
                         <td className="px-4 py-3">
-                          <p className="font-mono text-slate-800">{donor.pixChannel}</p>
-                          <p className="text-[11px] text-slate-500">
+                          <p className="font-mono text-[#14532D]">{donor.pixChannel}</p>
+                          <p className="text-[11px] text-[#166534]">
                             Todo dia {String(donor.dueDay).padStart(2, '0')} · Último:{' '}
                             {donor.lastPaidMonth || '—'}
                           </p>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono font-semibold tabular-nums text-slate-900">
+                        <td className="px-4 py-3 text-right font-mono font-bold tabular-nums text-[#052E16]">
                           R$ {donor.monthlyAmountBRL.toFixed(2).replace('.', ',')}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-700">
+                        <td className="px-4 py-3 text-right font-mono tabular-nums text-[#14532D]">
                           R$ {donor.totalContributedBRL.toFixed(2).replace('.', ',')}
                         </td>
                         <td className="px-4 py-3">
@@ -1199,12 +1338,12 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                                 e.target.value as MonthlyDonorStatus
                               )
                             }
-                            className={`rounded border border-slate-200 bg-white px-2 py-1 text-xs font-medium ${
+                            className={`rounded border border-[#86EFAC] bg-white px-2 py-1 text-xs font-bold ${
                               donor.status === 'Em dia'
-                                ? 'text-[#16A34A]'
+                                ? 'text-[#15803D]'
                                 : donor.status === 'Pausado'
-                                  ? 'text-slate-500'
-                                  : 'text-[#D97706]'
+                                  ? 'text-[#166534]'
+                                  : 'text-[#854D0E]'
                             }`}
                           >
                             <option value="Em dia">Em dia</option>
@@ -1217,25 +1356,26 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                             <button
                               type="button"
                               onClick={() => confirmMonthlyDonorPayment(donor.id)}
-                              className="inline-flex cursor-pointer items-center gap-1 rounded bg-[#14532D] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#0F3F22]"
+                              className="inline-flex cursor-pointer items-center gap-1 rounded bg-[#15803D] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#14532D]"
                             >
-                              <CheckCircle2 className="h-3 w-3" />
+                              <CheckCircle2 className="h-3 w-3 text-[#FEF08A]" />
                               <span>Confirmar PIX</span>
                             </button>
                             <a
                               href={buildMonthlyDonorWhatsappUrl(donor)}
                               target="_blank"
                               rel="noopener noreferrer"
-                              aria-label={`WhatsApp para ${donor.name}`}
-                              className="inline-flex items-center rounded border border-slate-300 px-2 py-1 text-[11px] font-medium text-slate-700 hover:bg-slate-100"
+                              aria-label={`Enviar recibo WhatsApp de ${donor.name}`}
+                              className="inline-flex items-center gap-1 rounded border border-[#86EFAC] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#15803D] hover:bg-[#F0FDF4] whitespace-nowrap"
                             >
                               <MessageCircle className="h-3 w-3" />
+                              <span>Recibo</span>
                             </a>
                             <button
                               type="button"
                               onClick={() => deleteMonthlyDonor(donor.id)}
                               aria-label={`Remover doador mensal ${donor.name}`}
-                              className="cursor-pointer rounded p-1 text-slate-400 hover:text-[#DC2626]"
+                              className="cursor-pointer rounded p-1 text-[#15803D] hover:bg-[#FEFCE8] hover:text-[#854D0E]"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -1252,38 +1392,49 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
           {/* TAB 4: RECEIPTS CONTROL */}
           {activeTab === 'receipts' && (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border-2 border-[#BBF7D0] bg-white p-5">
                 <div>
-                  <h2 className="font-serif text-lg font-semibold text-slate-900">
+                  <h2 className="font-serif text-lg font-semibold text-[#052E16]">
                     Controle de Recebimento de Doações
                   </h2>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-[#166534]">
                     Confirme transferências PIX, pagamentos de checkout e entregas de produtos.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowNewReceiptForm((prev) => !prev)}
-                  className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-md bg-[#14532D] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0F3F22]"
-                >
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  <span>Registrar Recebimento</span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <a
+                    href={buildAllDonationsWhatsappUrl(filteredDonations)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md bg-[#15803D] px-4 py-2 text-xs font-semibold text-white hover:bg-[#14532D] whitespace-nowrap shrink-0"
+                  >
+                    <MessageCircle className="h-4 w-4 text-[#FEF08A]" aria-hidden="true" />
+                    <span>Enviar Todos os Recibos (WhatsApp)</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewReceiptForm((prev) => !prev)}
+                    className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-md border border-[#CA8A04] bg-[#FACC15] px-4 py-2 text-xs font-bold text-[#052E16] hover:bg-[#EAB308] whitespace-nowrap shrink-0"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    <span>Registrar Recebimento</span>
+                  </button>
+                </div>
               </div>
 
               {showNewReceiptForm && (
                 <form
                   onSubmit={handleAddManualReceipt}
-                  className="rounded-lg border border-slate-200 bg-white p-6 space-y-4"
+                  className="rounded-lg border-2 border-[#BBF7D0] bg-white p-6 space-y-4"
                 >
                   <div className="flex items-center justify-between">
-                    <h3 className="font-serif text-base font-semibold text-slate-900">
+                    <h3 className="font-serif text-base font-semibold text-[#052E16]">
                       Novo Registro de Recebimento
                     </h3>
                     <button
                       type="button"
                       onClick={() => setShowNewReceiptForm(false)}
-                      className="cursor-pointer text-xs text-slate-500 hover:text-slate-900"
+                      className="cursor-pointer text-xs font-semibold text-[#854D0E] hover:text-[#052E16]"
                     >
                       Fechar
                     </button>
@@ -1291,7 +1442,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-700">
+                      <label className="block text-xs font-semibold text-[#14532D]">
                         Nome do colaborador
                       </label>
                       <input
@@ -1299,36 +1450,36 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                         required
                         value={newDonorName}
                         onChange={(e) => setNewDonorName(e.target.value)}
-                        className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                        className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700">E-mail</label>
+                      <label className="block text-xs font-semibold text-[#14532D]">E-mail</label>
                       <input
                         type="email"
                         value={newDonorEmail}
                         onChange={(e) => setNewDonorEmail(e.target.value)}
-                        className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                        className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700">Telefone</label>
+                      <label className="block text-xs font-semibold text-[#14532D]">Telefone</label>
                       <input
                         type="tel"
                         value={newDonorPhone}
                         onChange={(e) => setNewDonorPhone(e.target.value)}
-                        className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                        className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                       />
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div>
-                      <label className="block text-xs font-medium text-slate-700">Modalidade</label>
+                      <label className="block text-xs font-semibold text-[#14532D]">Modalidade</label>
                       <select
                         value={newDonationType}
                         onChange={(e) => setNewDonationType(e.target.value as DonationType)}
-                        className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                        className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                       >
                         <option value="PIX">PIX</option>
                         <option value="PIX Mensal">PIX Mensal</option>
@@ -1339,7 +1490,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
 
                     {newDonationType === 'Produtos' ? (
                       <div className="sm:col-span-2">
-                        <label className="block text-xs font-medium text-slate-700">
+                        <label className="block text-xs font-semibold text-[#14532D]">
                           Descrição dos produtos recebidos
                         </label>
                         <input
@@ -1348,12 +1499,12 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                           value={newItemsSummary}
                           onChange={(e) => setNewItemsSummary(e.target.value)}
                           placeholder="Ex.: 20 kg Farinha de trigo, 10 kg Açúcar"
-                          className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                          className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                         />
                       </div>
                     ) : (
                       <div>
-                        <label className="block text-xs font-medium text-slate-700">
+                        <label className="block text-xs font-semibold text-[#14532D]">
                           Valor (R$)
                         </label>
                         <input
@@ -1363,25 +1514,25 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                           value={newAmountBRL}
                           onChange={(e) => setNewAmountBRL(e.target.value)}
                           placeholder="100.00"
-                          className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 font-mono text-sm"
+                          className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 font-mono text-sm text-[#052E16]"
                         />
                       </div>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-medium text-slate-700">Observações</label>
+                    <label className="block text-xs font-semibold text-[#14532D]">Observações</label>
                     <input
                       type="text"
                       value={newDonationNotes}
                       onChange={(e) => setNewDonationNotes(e.target.value)}
-                      className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                     />
                   </div>
 
                   <button
                     type="submit"
-                    className="inline-flex min-h-[40px] cursor-pointer items-center rounded-md bg-[#14532D] px-4 py-2 text-xs font-semibold text-white"
+                    className="inline-flex min-h-[40px] cursor-pointer items-center rounded-md bg-[#15803D] px-4 py-2 text-xs font-semibold text-white hover:bg-[#14532D]"
                   >
                     Salvar Recebimento
                   </button>
@@ -1389,18 +1540,18 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
               )}
 
               {/* Filters */}
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white p-4">
-                <div className="flex flex-wrap items-center gap-1 rounded-md bg-slate-100 p-1">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border-2 border-[#BBF7D0] bg-white p-4">
+                <div className="flex flex-wrap items-center gap-1 rounded-md border border-[#BBF7D0] bg-[#DCFCE7] p-1">
                   {(['Todas', 'Recebida', 'Em Conferência', 'Pendente', 'Cancelada'] as const).map(
                     (st) => (
                       <button
                         key={st}
                         type="button"
                         onClick={() => setStatusFilter(st)}
-                        className={`cursor-pointer rounded px-3 py-1.5 text-xs font-medium whitespace-nowrap ${
+                        className={`cursor-pointer rounded px-3 py-1.5 text-xs font-semibold whitespace-nowrap ${
                           statusFilter === st
-                            ? 'bg-white text-slate-900 shadow-sm'
-                            : 'text-slate-600 hover:text-slate-900'
+                            ? 'bg-[#15803D] text-white shadow-sm'
+                            : 'text-[#14532D] hover:bg-white/75'
                         }`}
                       >
                         {st}
@@ -1414,7 +1565,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                     value={typeFilter}
                     onChange={(e) => setTypeFilter(e.target.value as 'Todos' | DonationType)}
                     aria-label="Filtrar por tipo de doação"
-                    className="min-h-[38px] rounded border border-slate-300 bg-white px-3 text-xs text-slate-800"
+                    className="min-h-[38px] rounded border border-[#86EFAC] bg-white px-3 text-xs font-semibold text-[#052E16]"
                   >
                     <option value="Todos">Todos os canais</option>
                     <option value="PIX">PIX</option>
@@ -1424,49 +1575,49 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                   </select>
 
                   <div className="relative">
-                    <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                    <Search className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-[#15803D]" />
                     <input
                       type="search"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Buscar colaborador ou protocolo..."
-                      className="min-h-[38px] rounded border border-slate-300 bg-white py-1.5 pr-3 pl-8 text-xs text-slate-900"
+                      className="min-h-[38px] rounded border border-[#86EFAC] bg-white py-1.5 pr-3 pl-8 text-xs text-[#052E16]"
                     />
                   </div>
                 </div>
               </div>
 
-              <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <div className="overflow-x-auto rounded-lg border-2 border-[#BBF7D0] bg-white">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 uppercase tracking-wider text-slate-500">
-                      <th className="px-4 py-3 font-medium">Data / Protocolo</th>
-                      <th className="px-4 py-3 font-medium">Colaborador &amp; Contato</th>
-                      <th className="px-4 py-3 font-medium">Canal</th>
-                      <th className="px-4 py-3 text-right font-medium">Valor / Produtos</th>
-                      <th className="px-4 py-3 font-medium">Status</th>
-                      <th className="px-4 py-3 text-right font-medium">Controle</th>
+                    <tr className="border-b border-[#BBF7D0] bg-[#DCFCE7]/50 uppercase tracking-wider text-[#14532D]">
+                      <th className="px-4 py-3 font-semibold">Data / Protocolo</th>
+                      <th className="px-4 py-3 font-semibold">Colaborador &amp; Contato</th>
+                      <th className="px-4 py-3 font-semibold">Canal</th>
+                      <th className="px-4 py-3 text-right font-semibold">Valor / Produtos</th>
+                      <th className="px-4 py-3 font-semibold">Status</th>
+                      <th className="px-4 py-3 text-right font-semibold">Controle</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[#DCFCE7]">
                     {filteredDonations.map((d) => (
-                      <tr key={d.id} className="hover:bg-slate-50">
+                      <tr key={d.id} className="hover:bg-[#F0FDF4]">
                         <td className="px-4 py-3">
-                          <p className="font-mono font-medium tabular-nums text-slate-900">
+                          <p className="font-mono font-semibold tabular-nums text-[#052E16]">
                             {d.referenceCode}
                           </p>
-                          <p className="font-mono text-[11px] tabular-nums text-slate-500">
+                          <p className="font-mono text-[11px] tabular-nums text-[#166534]">
                             {d.createdAt}
                           </p>
                         </td>
                         <td className="px-4 py-3">
-                          <p className="font-medium text-slate-900">{d.donorName}</p>
-                          <p className="text-[11px] text-slate-500">
+                          <p className="font-semibold text-[#052E16]">{d.donorName}</p>
+                          <p className="text-[11px] text-[#166534]">
                             {d.donorEmail} · {d.donorPhone}
                           </p>
                         </td>
-                        <td className="px-4 py-3 text-slate-700">{d.type}</td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
+                        <td className="px-4 py-3 text-[#14532D]">{d.type}</td>
+                        <td className="px-4 py-3 text-right font-mono font-semibold tabular-nums text-[#052E16]">
                           {typeof d.amountBRL === 'number'
                             ? `R$ ${d.amountBRL.toFixed(2).replace('.', ',')}`
                             : d.itemsSummary}
@@ -1478,12 +1629,12 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                             onChange={(e) =>
                               updateDonationStatus(d.id, e.target.value as DonationStatus)
                             }
-                            className={`rounded border border-slate-200 bg-white px-2 py-1 text-xs font-medium ${
+                            className={`rounded border border-[#86EFAC] bg-white px-2 py-1 text-xs font-bold ${
                               d.status === 'Recebida'
-                                ? 'text-[#16A34A]'
+                                ? 'text-[#15803D]'
                                 : d.status === 'Cancelada'
-                                  ? 'text-[#DC2626]'
-                                  : 'text-[#D97706]'
+                                  ? 'text-[#166534]'
+                                  : 'text-[#854D0E]'
                             }`}
                           >
                             <option value="Recebida">Recebida</option>
@@ -1494,13 +1645,23 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="inline-flex items-center gap-2">
+                            <a
+                              href={buildDonationReceiptWhatsappUrl(d)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label={`Enviar recibo WhatsApp da doação ${d.referenceCode}`}
+                              className="inline-flex items-center gap-1 rounded border border-[#86EFAC] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#15803D] hover:bg-[#F0FDF4] whitespace-nowrap"
+                            >
+                              <MessageCircle className="h-3 w-3" aria-hidden="true" />
+                              <span>Recibo WhatsApp</span>
+                            </a>
                             {d.status !== 'Recebida' && (
                               <button
                                 type="button"
                                 onClick={() => updateDonationStatus(d.id, 'Recebida')}
-                                className="inline-flex cursor-pointer items-center gap-1 rounded bg-[#14532D] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#0F3F22]"
+                                className="inline-flex cursor-pointer items-center gap-1 rounded bg-[#15803D] px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-[#14532D] whitespace-nowrap"
                               >
-                                <CheckCircle2 className="h-3 w-3" />
+                                <CheckCircle2 className="h-3 w-3 text-[#FEF08A]" />
                                 <span>Confirmar</span>
                               </button>
                             )}
@@ -1508,7 +1669,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                               type="button"
                               onClick={() => deleteDonation(d.id)}
                               aria-label={`Excluir registro ${d.referenceCode}`}
-                              className="cursor-pointer rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-[#DC2626]"
+                              className="cursor-pointer rounded p-1.5 text-[#15803D] hover:bg-[#FEFCE8] hover:text-[#854D0E]"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -1525,44 +1686,55 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
           {/* TAB 5: AGENDAMENTO DE COLETA DE DOAÇÕES */}
           {activeTab === 'pickups' && (
             <div className="space-y-5">
-              <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-slate-200 bg-white p-5">
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border-2 border-[#BBF7D0] bg-white p-5">
                 <div>
-                  <h2 className="font-serif text-lg font-semibold text-slate-900">
+                  <h2 className="font-serif text-lg font-semibold text-[#052E16]">
                     Agenda de Coletas — Veículo Institucional
                   </h2>
-                  <p className="mt-1 text-xs text-slate-500">
+                  <p className="mt-1 text-xs text-[#166534]">
                     Cadastre coletas com nome, e-mail, telefone e lista de produtos ou envie a
                     confirmação diretamente para o WhatsApp{' '}
-                    <span className="font-mono font-medium text-slate-800">
+                    <span className="font-mono font-bold text-[#052E16]">
                       {PIX_INFO.pickupWhatsappDisplay}
                     </span>
                     .
                   </p>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setShowNewPickupForm((prev) => !prev)}
-                  className="inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-md bg-[#14532D] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0F3F22]"
-                >
-                  <Plus className="h-4 w-4" aria-hidden="true" />
-                  <span>
-                    {showNewPickupForm ? 'Ocultar formulário' : 'Novo Agendamento de Coleta'}
-                  </span>
-                </button>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <a
+                    href={buildAllPickupsWhatsappUrl(pickups)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md bg-[#15803D] px-4 py-2 text-xs font-semibold text-white hover:bg-[#14532D] whitespace-nowrap shrink-0"
+                  >
+                    <MessageCircle className="h-4 w-4 text-[#FEF08A]" aria-hidden="true" />
+                    <span>Enviar Todas as Coletas (WhatsApp)</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPickupForm((prev) => !prev)}
+                    className="inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-md border border-[#CA8A04] bg-[#FACC15] px-4 py-2 text-xs font-bold text-[#052E16] hover:bg-[#EAB308] whitespace-nowrap shrink-0"
+                  >
+                    <Plus className="h-4 w-4" aria-hidden="true" />
+                    <span>
+                      {showNewPickupForm ? 'Ocultar formulário' : 'Novo Agendamento de Coleta'}
+                    </span>
+                  </button>
+                </div>
               </div>
 
               {showNewPickupForm && (
                 <form
                   onSubmit={handleAdminCreatePickup}
-                  className="grid grid-cols-1 gap-6 rounded-lg border border-slate-200 bg-white p-6 lg:grid-cols-12"
+                  className="grid grid-cols-1 gap-6 rounded-lg border-2 border-[#BBF7D0] bg-white p-6 lg:grid-cols-12"
                 >
                   <div className="space-y-3 lg:col-span-6">
-                    <h3 className="font-serif text-base font-semibold text-slate-900">
+                    <h3 className="font-serif text-base font-semibold text-[#052E16]">
                       Dados do colaborador
                     </h3>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700">
+                      <label className="block text-xs font-semibold text-[#14532D]">
                         Nome do colaborador
                       </label>
                       <input
@@ -1570,12 +1742,12 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                         required
                         value={collabName}
                         onChange={(e) => setCollabName(e.target.value)}
-                        className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                        className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                       />
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <div>
-                        <label className="block text-xs font-medium text-slate-700">
+                        <label className="block text-xs font-semibold text-[#14532D]">
                           E-mail do colaborador
                         </label>
                         <input
@@ -1583,11 +1755,11 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                           required
                           value={collabEmail}
                           onChange={(e) => setCollabEmail(e.target.value)}
-                          className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                          className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-slate-700">
+                        <label className="block text-xs font-semibold text-[#14532D]">
                           Telefone do colaborador
                         </label>
                         <input
@@ -1595,12 +1767,12 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                           required
                           value={collabPhone}
                           onChange={(e) => setCollabPhone(e.target.value)}
-                          className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                          className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                         />
                       </div>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700">
+                      <label className="block text-xs font-semibold text-[#14532D]">
                         Endereço de coleta
                       </label>
                       <input
@@ -1608,21 +1780,21 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                         required
                         value={pickupAddress}
                         onChange={(e) => setPickupAddress(e.target.value)}
-                        className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                        className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs font-medium text-slate-700">Data</label>
+                        <label className="block text-xs font-semibold text-[#14532D]">Data</label>
                         <input
                           type="date"
                           value={preferredDate}
                           onChange={(e) => setPreferredDate(e.target.value)}
-                          className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 font-mono text-sm"
+                          className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 font-mono text-sm text-[#052E16]"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-slate-700">Turno</label>
+                        <label className="block text-xs font-semibold text-[#14532D]">Turno</label>
                         <select
                           value={preferredShift}
                           onChange={(e) =>
@@ -1633,7 +1805,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                                 | 'Sábado (08h–12h)'
                             )
                           }
-                          className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                          className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                         >
                           <option value="Manhã (08h–12h)">Manhã (08h–12h)</option>
                           <option value="Tarde (14h–18h)">Tarde (14h–18h)</option>
@@ -1644,15 +1816,15 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                   </div>
 
                   <div className="space-y-3 lg:col-span-6">
-                    <h3 className="font-serif text-base font-semibold text-slate-900">
+                    <h3 className="font-serif text-base font-semibold text-[#052E16]">
                       Lista de produtos para recebimento
                     </h3>
-                    <div className="max-h-56 divide-y divide-slate-100 overflow-y-auto rounded border border-slate-200 px-3">
+                    <div className="max-h-56 divide-y divide-[#DCFCE7] overflow-y-auto rounded border border-[#BBF7D0] bg-[#F0FDF4] px-3">
                       {products
                         .filter((p) => p.active)
                         .map((item) => (
                           <div key={item.id} className="flex items-center justify-between py-2 text-xs">
-                            <span className="font-medium text-slate-800">{item.name}</span>
+                            <span className="font-semibold text-[#052E16]">{item.name}</span>
                             <div className="flex items-center gap-1.5">
                               <input
                                 type="number"
@@ -1665,9 +1837,9 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                                     [item.id]: Math.max(0, Number(e.target.value) || 0),
                                   }))
                                 }
-                                className="h-8 w-14 rounded border border-slate-300 px-2 text-right font-mono tabular-nums"
+                                className="h-8 w-14 rounded border border-[#86EFAC] bg-white px-2 text-right font-mono tabular-nums text-[#052E16]"
                               />
-                              <span className="w-14 text-slate-500">{item.unit}</span>
+                              <span className="w-14 text-[#14532D]">{item.unit}</span>
                             </div>
                           </div>
                         ))}
@@ -1677,12 +1849,12 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                       value={pickupCustomItems}
                       onChange={(e) => setPickupCustomItems(e.target.value)}
                       placeholder="Outros itens para coleta..."
-                      className="min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                      className="min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                     />
                     <div className="flex flex-wrap gap-3 pt-1">
                       <button
                         type="submit"
-                        className="inline-flex min-h-[40px] cursor-pointer items-center rounded-md bg-[#14532D] px-4 py-2 text-xs font-semibold text-white"
+                        className="inline-flex min-h-[40px] cursor-pointer items-center rounded-md border border-[#CA8A04] bg-[#FACC15] px-4 py-2 text-xs font-bold text-[#052E16] hover:bg-[#EAB308]"
                       >
                         Salvar Agendamento
                       </button>
@@ -1706,7 +1878,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                         })}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md border border-[#14532D] px-4 py-2 text-xs font-semibold text-[#14532D]"
+                        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-md border-2 border-[#15803D] bg-white px-4 py-2 text-xs font-semibold text-[#15803D] hover:bg-[#F0FDF4]"
                       >
                         <MessageCircle className="h-3.5 w-3.5" />
                         <span>Enviar p/ WhatsApp {PIX_INFO.pickupWhatsappDisplay}</span>
@@ -1720,18 +1892,18 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                 {pickups.map((p) => (
                   <div
                     key={p.id}
-                    className="flex flex-col justify-between rounded-lg border border-slate-200 bg-white p-5"
+                    className="flex flex-col justify-between rounded-lg border-2 border-[#BBF7D0] bg-white p-5"
                   >
                     <div>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
-                          <p className="font-mono text-xs tabular-nums text-slate-500">
+                          <p className="font-mono text-xs font-medium tabular-nums text-[#15803D]">
                             {p.preferredDate} · {p.preferredShift}
                           </p>
-                          <h3 className="mt-1 font-serif text-lg font-semibold text-slate-900">
+                          <h3 className="mt-1 font-serif text-lg font-semibold text-[#052E16]">
                             {p.collaboratorName}
                           </h3>
-                          <p className="text-xs text-slate-600">
+                          <p className="text-xs text-[#166534]">
                             {p.collaboratorEmail} ·{' '}
                             <span className="font-mono tabular-nums">{p.collaboratorPhone}</span>
                           </p>
@@ -1743,12 +1915,12 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                           onChange={(e) =>
                             updatePickupStatus(p.id, e.target.value as PickupStatus)
                           }
-                          className={`rounded border border-slate-200 px-2.5 py-1 text-xs font-semibold ${
+                          className={`rounded border border-[#86EFAC] bg-white px-2.5 py-1 text-xs font-bold ${
                             p.status === 'Coletada'
-                              ? 'text-[#16A34A]'
+                              ? 'text-[#15803D]'
                               : p.status === 'Cancelada'
-                                ? 'text-[#DC2626]'
-                                : 'text-[#D97706]'
+                                ? 'text-[#166534]'
+                                : 'text-[#854D0E]'
                           }`}
                         >
                           <option value="Agendada">Agendada</option>
@@ -1758,41 +1930,41 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                         </select>
                       </div>
 
-                      <p className="mt-3 text-xs text-slate-700">
-                        <strong className="font-medium text-slate-900">Endereço:</strong>{' '}
+                      <p className="mt-3 text-xs text-[#14532D]">
+                        <strong className="font-semibold text-[#052E16]">Endereço:</strong>{' '}
                         {p.pickupAddress}
                       </p>
 
-                      <div className="mt-3 border-t border-slate-100 pt-3">
-                        <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                      <div className="mt-3 border-t border-[#DCFCE7] pt-3">
+                        <p className="text-[11px] font-semibold uppercase tracking-wider text-[#15803D]">
                           Produtos da coleta
                         </p>
-                        <ul className="mt-1.5 space-y-1 text-xs text-slate-800">
+                        <ul className="mt-1.5 space-y-1 text-xs text-[#052E16]">
                           {p.items.map((it) => (
                             <li key={it.productId} className="flex justify-between">
                               <span>{it.productName}</span>
-                              <span className="font-mono tabular-nums font-medium">
+                              <span className="font-mono tabular-nums font-semibold">
                                 {it.quantity} {it.unit}
                               </span>
                             </li>
                           ))}
                           {p.customItemsText && (
-                            <li className="text-slate-600">Outros: {p.customItemsText}</li>
+                            <li className="text-[#166534]">Outros: {p.customItemsText}</li>
                           )}
                         </ul>
                       </div>
                     </div>
 
-                    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-[#DCFCE7] pt-4">
                       <a
                         href={buildPickupWhatsappUrl(p)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md bg-[#14532D] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#0F3F22]"
+                        className="inline-flex min-h-[38px] items-center gap-1.5 rounded-md bg-[#15803D] px-3.5 py-2 text-xs font-semibold text-white hover:bg-[#14532D]"
                       >
-                        <MessageCircle className="h-3.5 w-3.5" aria-hidden="true" />
+                        <MessageCircle className="h-3.5 w-3.5 text-[#FEF08A]" aria-hidden="true" />
                         <span>
-                          Enviar agendamento WhatsApp ({PIX_INFO.pickupWhatsappDisplay})
+                          Enviar Recibo da Coleta WhatsApp ({PIX_INFO.pickupWhatsappDisplay})
                         </span>
                         <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                       </a>
@@ -1801,7 +1973,7 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                         <button
                           type="button"
                           onClick={() => updatePickupStatus(p.id, 'Coletada')}
-                          className="cursor-pointer text-xs font-semibold text-[#16A34A] hover:underline"
+                          className="cursor-pointer text-xs font-bold text-[#15803D] hover:underline"
                         >
                           Marcar como Coletada
                         </button>
@@ -1818,10 +1990,10 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
             <div className="space-y-5">
               <form
                 onSubmit={handleAddProduct}
-                className="grid grid-cols-1 gap-4 rounded-lg border border-slate-200 bg-white p-5 sm:grid-cols-12 sm:items-end"
+                className="grid grid-cols-1 gap-4 rounded-lg border-2 border-[#BBF7D0] bg-white p-5 sm:grid-cols-12 sm:items-end"
               >
                 <div className="sm:col-span-4">
-                  <label className="block text-xs font-medium text-slate-700">
+                  <label className="block text-xs font-semibold text-[#14532D]">
                     Novo produto para recebimento
                   </label>
                   <input
@@ -1830,15 +2002,15 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                     value={newProductName}
                     onChange={(e) => setNewProductName(e.target.value)}
                     placeholder="Ex.: Óleo de soja 900ml"
-                    className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                    className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                   />
                 </div>
                 <div className="sm:col-span-3">
-                  <label className="block text-xs font-medium text-slate-700">Categoria</label>
+                  <label className="block text-xs font-semibold text-[#14532D]">Categoria</label>
                   <select
                     value={newProductCat}
                     onChange={(e) => setNewProductCat(e.target.value as ProductCategory)}
-                    className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                    className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                   >
                     <option value="Insumos do Sopão">Insumos do Sopão</option>
                     <option value="Panificação Solidária">Panificação Solidária</option>
@@ -1847,51 +2019,51 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                   </select>
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-slate-700">Unidade</label>
+                  <label className="block text-xs font-semibold text-[#14532D]">Unidade</label>
                   <input
                     type="text"
                     value={newProductUnit}
                     onChange={(e) => setNewProductUnit(e.target.value)}
-                    className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-3 text-sm"
+                    className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
                   />
                 </div>
                 <div className="sm:col-span-1">
-                  <label className="block text-xs font-medium text-slate-700">Meta</label>
+                  <label className="block text-xs font-semibold text-[#14532D]">Meta</label>
                   <input
                     type="number"
                     min={1}
                     value={newProductTarget}
                     onChange={(e) => setNewProductTarget(e.target.value)}
-                    className="mt-1 min-h-[40px] w-full rounded border border-slate-300 px-2 font-mono text-sm"
+                    className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-2 font-mono text-sm text-[#052E16]"
                   />
                 </div>
                 <div className="sm:col-span-2">
                   <button
                     type="submit"
-                    className="inline-flex min-h-[40px] w-full cursor-pointer items-center justify-center rounded-md bg-[#14532D] px-4 py-2 text-xs font-semibold text-white hover:bg-[#0F3F22]"
+                    className="inline-flex min-h-[40px] w-full cursor-pointer items-center justify-center rounded-md border border-[#CA8A04] bg-[#FACC15] px-4 py-2 text-xs font-bold text-[#052E16] hover:bg-[#EAB308]"
                   >
                     Adicionar item
                   </button>
                 </div>
               </form>
 
-              <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+              <div className="overflow-x-auto rounded-lg border-2 border-[#BBF7D0] bg-white">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50 uppercase tracking-wider text-slate-500">
-                      <th className="px-4 py-3 font-medium">Produto</th>
-                      <th className="px-4 py-3 font-medium">Categoria</th>
-                      <th className="px-4 py-3 font-medium">Prioridade</th>
-                      <th className="px-4 py-3 text-right font-medium">Recebido</th>
-                      <th className="px-4 py-3 text-right font-medium">Meta</th>
-                      <th className="px-4 py-3 text-right font-medium">Visível ao público</th>
+                    <tr className="border-b border-[#BBF7D0] bg-[#DCFCE7]/50 uppercase tracking-wider text-[#14532D]">
+                      <th className="px-4 py-3 font-semibold">Produto</th>
+                      <th className="px-4 py-3 font-semibold">Categoria</th>
+                      <th className="px-4 py-3 font-semibold">Prioridade</th>
+                      <th className="px-4 py-3 text-right font-semibold">Recebido</th>
+                      <th className="px-4 py-3 text-right font-semibold">Meta</th>
+                      <th className="px-4 py-3 text-right font-semibold">Visível ao público</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-[#DCFCE7]">
                     {products.map((prod) => (
-                      <tr key={prod.id} className="hover:bg-slate-50">
-                        <td className="px-4 py-3 font-medium text-slate-900">{prod.name}</td>
-                        <td className="px-4 py-3 text-slate-600">{prod.category}</td>
+                      <tr key={prod.id} className="hover:bg-[#F0FDF4]">
+                        <td className="px-4 py-3 font-semibold text-[#052E16]">{prod.name}</td>
+                        <td className="px-4 py-3 text-[#14532D]">{prod.category}</td>
                         <td className="px-4 py-3">
                           <select
                             aria-label={`Prioridade de ${prod.name}`}
@@ -1901,29 +2073,301 @@ export function AdminDashboard({ onExitAdmin }: AdminDashboardProps) {
                                 priority: e.target.value as DonationProductItem['priority'],
                               })
                             }
-                            className="rounded border border-slate-200 bg-white px-2 py-1 text-xs"
+                            className="rounded border border-[#86EFAC] bg-white px-2 py-1 text-xs font-semibold text-[#052E16]"
                           >
                             <option value="Prioritário">Prioritário</option>
                             <option value="Contínuo">Contínuo</option>
                             <option value="Estável">Estável</option>
                           </select>
                         </td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-900">
+                        <td className="px-4 py-3 text-right font-mono tabular-nums text-[#052E16]">
                           {prod.receivedQty} {prod.unit}
                         </td>
-                        <td className="px-4 py-3 text-right font-mono tabular-nums text-slate-600">
+                        <td className="px-4 py-3 text-right font-mono tabular-nums text-[#166534]">
                           {prod.targetQty} {prod.unit}
                         </td>
                         <td className="px-4 py-3 text-right">
                           <button
                             type="button"
                             onClick={() => updateProductItem(prod.id, { active: !prod.active })}
-                            className={`cursor-pointer text-xs font-semibold ${
-                              prod.active ? 'text-[#16A34A]' : 'text-slate-400'
+                            className={`cursor-pointer text-xs font-bold ${
+                              prod.active ? 'text-[#15803D]' : 'text-[#854D0E]'
                             }`}
                           >
                             {prod.active ? 'Ativo na lista' : 'Pausado'}
                           </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {/* TAB 7: NOTÍCIAS E AÇÕES RECENTES */}
+          {activeTab === 'news' && (
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border-2 border-[#BBF7D0] bg-white p-5">
+                <div>
+                  <h2 className="font-serif text-lg font-semibold text-[#052E16]">
+                    Publicações de Notícias e Ações Recentes
+                  </h2>
+                  <p className="mt-1 text-xs text-[#166534]">
+                    As publicações marcadas como ativas aparecem imediatamente na seção{' '}
+                    <strong className="text-[#052E16]">Notícias e Ações Recentes</strong> da tela
+                    principal.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (showNewsForm) {
+                      resetNewsForm();
+                      setShowNewsForm(false);
+                    } else {
+                      resetNewsForm();
+                      setShowNewsForm(true);
+                    }
+                  }}
+                  className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-md border border-[#CA8A04] bg-[#FACC15] px-4 py-2 text-xs font-bold text-[#052E16] hover:bg-[#EAB308]"
+                >
+                  <Plus className="h-4 w-4" aria-hidden="true" />
+                  <span>{showNewsForm ? 'Ocultar formulário' : 'Nova Notícia / Ação'}</span>
+                </button>
+              </div>
+
+              {showNewsForm && (
+                <form
+                  onSubmit={handleSaveNewsSubmit}
+                  className="grid grid-cols-1 gap-4 rounded-lg border-2 border-[#BBF7D0] bg-white p-6 sm:grid-cols-12"
+                >
+                  <div className="flex items-center justify-between sm:col-span-12">
+                    <h3 className="font-serif text-base font-semibold text-[#052E16]">
+                      {editingNewsId ? 'Editar publicação' : 'Nova Notícia ou Ação Comunitária'}
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetNewsForm();
+                        setShowNewsForm(false);
+                      }}
+                      className="cursor-pointer text-xs font-semibold text-[#854D0E] hover:text-[#052E16]"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+
+                  <div className="sm:col-span-6">
+                    <label className="block text-xs font-semibold text-[#14532D]">
+                      Título da notícia ou ação
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newsTitle}
+                      onChange={(e) => setNewsTitle(e.target.value)}
+                      placeholder="Ex.: Entrega de 180 refeições do Sopão no Bairro Olaria"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <label className="block text-xs font-semibold text-[#14532D]">Categoria</label>
+                    <select
+                      value={newsCategory}
+                      onChange={(e) => setNewsCategory(e.target.value as NewsPostCategory)}
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
+                    >
+                      <option value="Ação Comunitária">Ação Comunitária</option>
+                      <option value="Panificação & Cozinha">Panificação &amp; Cozinha</option>
+                      <option value="Editais & Transparência">Editais &amp; Transparência</option>
+                      <option value="Campanha de Doação">Campanha de Doação</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-3">
+                    <label className="block text-xs font-semibold text-[#14532D]">Data</label>
+                    <input
+                      type="date"
+                      required
+                      value={newsDate}
+                      onChange={(e) => setNewsDate(e.target.value)}
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 font-mono text-sm text-[#052E16]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-6">
+                    <label className="block text-xs font-semibold text-[#14532D]">
+                      Local da atividade
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newsLocation}
+                      onChange={(e) => setNewsLocation(e.target.value)}
+                      placeholder="Sede Bairro Olaria · Plácido de Castro, AC"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-6">
+                    <label className="block text-xs font-semibold text-[#14532D]">
+                      Resultado / Destaque curto (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      value={newsMetric}
+                      onChange={(e) => setNewsMetric(e.target.value)}
+                      placeholder="Ex.: 200 porções distribuídas · 12 voluntários"
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-12">
+                    <label className="block text-xs font-semibold text-[#14532D]">
+                      Resumo para o cartão da tela principal
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={newsSummary}
+                      onChange={(e) => setNewsSummary(e.target.value)}
+                      placeholder="Resumo objetivo em 1 ou 2 frases sobre a ação realizada..."
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-12">
+                    <label className="block text-xs font-semibold text-[#14532D]">
+                      Texto completo da notícia
+                    </label>
+                    <textarea
+                      rows={4}
+                      required
+                      value={newsFullText}
+                      onChange={(e) => setNewsFullText(e.target.value)}
+                      placeholder="Descreva os detalhes da ação, famílias atendidas, voluntários envolvidos e agradecimentos..."
+                      className="mt-1 w-full rounded border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-6">
+                    <label className="block text-xs font-semibold text-[#14532D]">
+                      Foto do acervo oficial ou URL da imagem
+                    </label>
+                    <select
+                      value={newsImageSrc}
+                      onChange={(e) => setNewsImageSrc(e.target.value)}
+                      className="mt-1 min-h-[40px] w-full rounded border border-[#86EFAC] bg-white px-3 text-sm text-[#052E16]"
+                    >
+                      {DOCUMENTARY_FIGURES.map((fig) => (
+                        <option key={fig.id} value={fig.imageSrc}>
+                          {fig.number} — {fig.title}
+                        </option>
+                      ))}
+                      <option value={OFFICIAL_ASSETS.logo}>Logomarca Projeto Sopão Acre</option>
+                    </select>
+                  </div>
+
+                  <div className="sm:col-span-6">
+                    <label className="block text-xs font-semibold text-[#14532D]">
+                      Ou enviar nova foto do computador/celular
+                    </label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleNewsFileUpload}
+                      className="mt-1 block w-full rounded border border-[#86EFAC] bg-[#F0FDF4] px-3 py-1.5 text-xs text-[#052E16] file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-[#15803D] file:px-3 file:py-1 file:text-xs file:font-semibold file:text-white"
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-4 sm:col-span-12 pt-1">
+                    <label className="flex items-center gap-2 text-xs font-semibold text-[#14532D]">
+                      <input
+                        type="checkbox"
+                        checked={newsPublished}
+                        onChange={(e) => setNewsPublished(e.target.checked)}
+                        className="h-4 w-4 accent-[#15803D]"
+                      />
+                      <span>Publicar imediatamente na tela principal</span>
+                    </label>
+
+                    <button
+                      type="submit"
+                      className="inline-flex min-h-[42px] cursor-pointer items-center justify-center rounded-md bg-[#15803D] px-6 py-2 text-xs font-semibold text-white hover:bg-[#14532D]"
+                    >
+                      {editingNewsId ? 'Salvar alterações' : 'Publicar Notícia / Ação'}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="overflow-x-auto rounded-lg border-2 border-[#BBF7D0] bg-white">
+                <table className="w-full border-collapse text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-[#BBF7D0] bg-[#DCFCE7]/50 uppercase tracking-wider text-[#14532D]">
+                      <th className="px-4 py-3 font-semibold">Data</th>
+                      <th className="px-4 py-3 font-semibold">Notícia / Ação</th>
+                      <th className="px-4 py-3 font-semibold">Categoria</th>
+                      <th className="px-4 py-3 font-semibold">Status</th>
+                      <th className="px-4 py-3 text-right font-semibold">Ações</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#DCFCE7]">
+                    {newsPosts.map((post) => (
+                      <tr key={post.id} className="hover:bg-[#F0FDF4]">
+                        <td className="px-4 py-3 font-mono tabular-nums text-[#166534] whitespace-nowrap">
+                          {post.publishedAt}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={post.imageSrc || OFFICIAL_ASSETS.logo}
+                              alt=""
+                              className="h-10 w-14 shrink-0 rounded border border-[#BBF7D0] object-cover"
+                            />
+                            <div className="min-w-0">
+                              <p className="font-semibold text-[#052E16]">{post.title}</p>
+                              <p className="line-clamp-1 text-[11px] text-[#166534]">
+                                {post.summary}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 font-medium text-[#14532D] whitespace-nowrap">
+                          {post.category}
+                        </td>
+                        <td className="px-4 py-3">
+                          <button
+                            type="button"
+                            onClick={() => updateNewsPost(post.id, { published: !post.published })}
+                            className={`cursor-pointer text-xs font-bold ${
+                              post.published ? 'text-[#15803D]' : 'text-[#854D0E]'
+                            }`}
+                          >
+                            {post.published ? 'Publicada' : 'Rascunho'}
+                          </button>
+                        </td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="inline-flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => handleEditNewsClick(post)}
+                              aria-label={`Editar ${post.title}`}
+                              className="inline-flex cursor-pointer items-center gap-1 rounded border border-[#86EFAC] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#15803D] hover:bg-[#F0FDF4]"
+                            >
+                              <PenSquare className="h-3 w-3" />
+                              <span>Editar</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteNewsPost(post.id)}
+                              aria-label={`Excluir ${post.title}`}
+                              className="cursor-pointer rounded p-1.5 text-[#15803D] hover:bg-[#FEFCE8] hover:text-[#854D0E]"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

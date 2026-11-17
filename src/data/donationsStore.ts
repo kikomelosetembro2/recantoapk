@@ -11,6 +11,25 @@ export type ProductCategory =
   | 'Porcionamento & Kits'
   | 'Higiene & Limpeza';
 
+export type NewsPostCategory =
+  | 'Ação Comunitária'
+  | 'Panificação & Cozinha'
+  | 'Editais & Transparência'
+  | 'Campanha de Doação';
+
+export interface NewsPostRecord {
+  id: string;
+  publishedAt: string;
+  title: string;
+  category: NewsPostCategory;
+  location: string;
+  summary: string;
+  fullText: string;
+  imageSrc?: string;
+  highlightMetric?: string;
+  published: boolean;
+}
+
 export interface DonationProductItem {
   id: string;
   name: string;
@@ -457,11 +476,71 @@ const INITIAL_PICKUPS: PickupScheduleRecord[] = [
   },
 ];
 
+const INITIAL_NEWS_POSTS: NewsPostRecord[] = [
+  {
+    id: 'news-001',
+    publishedAt: '2026-11-16',
+    title: 'Mutirão semanal do Sopão Comunitário atende famílias no Bairro Olaria',
+    category: 'Ação Comunitária',
+    location: 'Sede Bairro Olaria · Plácido de Castro, AC',
+    summary:
+      'Voluntários da cozinha solidária prepararam e distribuíram dezenas de porções quentes de sopa nutritiva com legumes, proteínas e farofa temperada.',
+    fullText:
+      'Nesta semana, a equipe de voluntários da Associação Recanto Social Bom Pastor reuniu-se na sede da Rua Zuila Ferreira de Freitas, nº 933, para mais uma edição do Projeto Sopão Comunitário. Os alimentos foram preparados com insumos recebidos por meio de doações de produtores locais, parceiros comerciais e apoiadores via PIX. As porções individuais foram higienizadas, acondicionadas e entregues gratuitamente às famílias cadastradas do Bairro Olaria e adjacências.',
+    imageSrc: '/assets/extracted/fig1_sopao_comunitario.jpg',
+    highlightMetric: 'Refeições quentes entregues gratuitamente',
+    published: true,
+  },
+  {
+    id: 'news-002',
+    publishedAt: '2026-11-14',
+    title: 'Padaria solidária amplia fornadas matinais de pães e bolos caseiros',
+    category: 'Panificação & Cozinha',
+    location: 'Padaria Comunitária · Bairro Olaria',
+    summary:
+      'A produção própria de pães grandes, pãezinhos individuais e bolos fatiados garante o reforço nutricional do café da manhã de crianças e idosos.',
+    fullText:
+      'Com apoio dos colaboradores que doam farinha de trigo, açúcar e fermento, a frente de Panificação Solidária manteve o ritmo intenso de fornadas artesanais nesta semana. Centenas de pãezinhos individuais e tabuleiros de bolo caseiro foram assados, resfriados na mesa de triagem e encaminhados junto aos kits familiares distribuídos pela associação.',
+    imageSrc: '/assets/extracted/fig3_paes_larga_escala.jpg',
+    highlightMetric: 'Produção própria artesanal da sede',
+    published: true,
+  },
+  {
+    id: 'news-003',
+    publishedAt: '2026-11-10',
+    title: 'Veículo institucional leva kits alimentares para ramais da zona rural',
+    category: 'Ação Comunitária',
+    location: 'Zona Urbana e Rural · Plácido de Castro, AC',
+    summary:
+      'Automóvel conquistado por meio de emenda parlamentar permite que as entregas alcancem famílias em comunidades mais distantes da sede.',
+    fullText:
+      'Utilizando o veículo zero quilômetro incorporado ao patrimônio da associação, os voluntários de logística realizaram rotas de entrega na zona urbana e em ramais rurais de Plácido de Castro. Além da entrega das porções alimentares e farofa porcionada, a equipe também realizou coletas de hortaliças e legumes doados por sítios parceiros.',
+    imageSrc: '/assets/extracted/fig8_logistica_distribuicao.jpg',
+    highlightMetric: 'Atendimento em bairros e zona rural',
+    published: true,
+  },
+  {
+    id: 'news-004',
+    publishedAt: '2026-11-05',
+    title: 'Prestação de contas e regularidade documental junto à SEASDH e TJAC',
+    category: 'Editais & Transparência',
+    location: 'Secretaria Administrativa · Plácido de Castro, AC',
+    summary:
+      'Diretoria atualiza balancete mensal e relatórios fotográficos exigidos pelos termos de fomento estadual e editais do Poder Judiciário.',
+    fullText:
+      'Reafirmando o compromisso de transparência que garantiu o reconhecimento de Utilidade Pública Estadual pela Lei nº 3.809/2021, a Associação Recanto Social Bom Pastor disponibiliza o acompanhamento contínuo de receitas, doações mensais via PIX e aplicação de recursos provenientes do Termo de Fomento nº 25 (SEASDH) e dos editais da Vara Única Criminal do TJAC.',
+    imageSrc: '/assets/extracted/fig6_bolos_caseiros.jpg',
+    highlightMetric: 'Transparência contábil permanente',
+    published: true,
+  },
+];
+
 const KEY_PRODUCTS = 'rsbp_donation_products_v1';
 const KEY_DONATIONS = 'rsbp_donation_records_v1';
 const KEY_PICKUPS = 'rsbp_pickup_schedules_v1';
 const KEY_MONTHLY_DONORS = 'rsbp_monthly_donors_v1';
 const KEY_ACCOUNTING = 'rsbp_accounting_entries_v1';
+const KEY_NEWS_POSTS = 'rsbp_news_posts_v1';
 const SYNC_EVENT = 'rsbp-donations-sync';
 
 function readStorage<T>(key: string, fallback: T): T {
@@ -505,7 +584,73 @@ export function buildPixPayload(
   ].join('');
 }
 
+function formatMoneyBRL(value: number): string {
+  return `R$ ${value.toFixed(2).replace('.', ',')}`;
+}
+
+export function buildDonationReceiptWhatsappUrl(donation: DonationRecord): string {
+  const valueLine =
+    typeof donation.amountBRL === 'number'
+      ? `Valor contribuído: ${formatMoneyBRL(donation.amountBRL)}`
+      : `Produtos doados: ${donation.itemsSummary || 'Itens diversos'}`;
+
+  const message = [
+    '*RECIBO OFICIAL DE DOAÇÃO — PROJETO SOPÃO*',
+    'Associação Recanto Social Bom Pastor · CNPJ 33.314.701/0001-54',
+    `Protocolo / Recibo: ${donation.referenceCode}`,
+    `Data do registro: ${donation.createdAt}`,
+    `Doador / Colaborador(a): ${donation.donorName}`,
+    `E-mail: ${donation.donorEmail}`,
+    `Telefone: ${donation.donorPhone}`,
+    `Modalidade: ${donation.type}`,
+    valueLine,
+    `Status: ${donation.status}`,
+    donation.notes ? `Observações: ${donation.notes}` : '',
+    '',
+    'Plácido de Castro - AC · Bairro Olaria',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return `https://wa.me/${PIX_INFO.pickupWhatsappDigits}?text=${encodeURIComponent(message)}`;
+}
+
+export function buildAllDonationsWhatsappUrl(donations: DonationRecord[]): string {
+  const receivedTotal = donations
+    .filter((d) => d.status === 'Recebida' && typeof d.amountBRL === 'number')
+    .reduce((acc, d) => acc + (d.amountBRL ?? 0), 0);
+
+  const maxLines = 15;
+  const lines = donations.slice(0, maxLines).map((d, idx) => {
+    const val =
+      typeof d.amountBRL === 'number'
+        ? formatMoneyBRL(d.amountBRL)
+        : d.itemsSummary || 'Produtos';
+    return `${idx + 1}. [${d.referenceCode}] ${d.createdAt} · ${d.donorName} · ${d.type} · ${val} (${d.status})`;
+  });
+
+  const extraCount = donations.length - lines.length;
+
+  const message = [
+    '*RECIBO GERAL DE DOAÇÕES — ASSOCIAÇÃO RECANTO SOCIAL BOM PASTOR*',
+    'Projeto Sopão · CNPJ 33.314.701/0001-54',
+    `Total de registros: ${donations.length}`,
+    `Total confirmado em espécie/PIX: ${formatMoneyBRL(receivedTotal)}`,
+    '',
+    '*Detalhamento das doações:*',
+    ...lines,
+    extraCount > 0 ? `... e mais ${extraCount} registro(s) no painel administrativo.` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return `https://wa.me/${PIX_INFO.pickupWhatsappDigits}?text=${encodeURIComponent(message)}`;
+}
+
 export function buildPickupWhatsappUrl(pickup: {
+  id?: string;
+  createdAt?: string;
+  status?: PickupStatus;
   collaboratorName: string;
   collaboratorEmail: string;
   collaboratorPhone: string;
@@ -523,7 +668,10 @@ export function buildPickupWhatsappUrl(pickup: {
     : '';
 
   const message = [
-    '*AGENDAMENTO DE COLETA DE DOAÇÕES — PROJETO SOPÃO*',
+    '*RECIBO DE AGENDAMENTO DE COLETA — PROJETO SOPÃO*',
+    'Associação Recanto Social Bom Pastor · CNPJ 33.314.701/0001-54',
+    pickup.id ? `Protocolo da coleta: ${pickup.id.toUpperCase()}` : '',
+    pickup.status ? `Status da coleta: ${pickup.status}` : '',
     `Colaborador(a): ${pickup.collaboratorName}`,
     `E-mail: ${pickup.collaboratorEmail}`,
     `Telefone: ${pickup.collaboratorPhone}`,
@@ -540,19 +688,62 @@ export function buildPickupWhatsappUrl(pickup: {
   return `https://wa.me/${PIX_INFO.pickupWhatsappDigits}?text=${encodeURIComponent(message)}`;
 }
 
+export function buildAllPickupsWhatsappUrl(pickups: PickupScheduleRecord[]): string {
+  const maxItems = 12;
+  const lines = pickups.slice(0, maxItems).map((p, idx) => {
+    const prodSummary = [
+      ...p.items.map((i) => `${i.quantity} ${i.unit} ${i.productName}`),
+      p.customItemsText?.trim() || '',
+    ]
+      .filter(Boolean)
+      .join(', ');
+
+    return `${idx + 1}. [${p.id.toUpperCase()}] ${p.preferredDate} (${p.preferredShift}) · ${p.collaboratorName} (${p.collaboratorPhone}) · ${p.pickupAddress} · Itens: ${prodSummary || 'A combinar'} · Status: ${p.status}`;
+  });
+
+  const extraCount = pickups.length - lines.length;
+
+  const message = [
+    '*RECIBO GERAL DE AGENDAMENTOS DE COLETA — PROJETO SOPÃO*',
+    'Associação Recanto Social Bom Pastor · CNPJ 33.314.701/0001-54',
+    `Total de coletas listadas: ${pickups.length}`,
+    '',
+    '*Agenda de retiradas:*',
+    ...lines,
+    extraCount > 0 ? `... e mais ${extraCount} coleta(s) no painel administrativo.` : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return `https://wa.me/${PIX_INFO.pickupWhatsappDigits}?text=${encodeURIComponent(message)}`;
+}
+
 export function buildMonthlyDonorWhatsappUrl(donor: {
   name: string;
+  email?: string;
+  phone?: string;
   monthlyAmountBRL: number;
   dueDay: number;
   pixChannel: string;
+  status?: MonthlyDonorStatus;
+  totalContributedBRL?: number;
 }): string {
   const message = [
-    '*ADESÃO DE DOADOR MENSAL — PROJETO SOPÃO*',
+    '*RECIBO DE DOADOR MENSAL PIX — PROJETO SOPÃO*',
+    'Associação Recanto Social Bom Pastor · CNPJ 33.314.701/0001-54',
     `Doador(a): ${donor.name}`,
-    `Valor mensal via PIX: R$ ${donor.monthlyAmountBRL.toFixed(2).replace('.', ',')}`,
+    donor.email ? `E-mail: ${donor.email}` : '',
+    donor.phone ? `Telefone: ${donor.phone}` : '',
+    `Valor mensal via PIX: ${formatMoneyBRL(donor.monthlyAmountBRL)}`,
     `Dia de contribuição: Todo dia ${String(donor.dueDay).padStart(2, '0')}`,
     `Chave PIX escolhida: ${donor.pixChannel}`,
-  ].join('\n');
+    donor.status ? `Status: ${donor.status}` : '',
+    typeof donor.totalContributedBRL === 'number'
+      ? `Total acumulado contribuído: ${formatMoneyBRL(donor.totalContributedBRL)}`
+      : '',
+  ]
+    .filter(Boolean)
+    .join('\n');
 
   return `https://wa.me/${PIX_INFO.pickupWhatsappDigits}?text=${encodeURIComponent(message)}`;
 }
@@ -573,6 +764,9 @@ export function useDonationsStore() {
   const [accountingEntries, setAccountingEntries] = useState<AccountingEntry[]>(() =>
     readStorage(KEY_ACCOUNTING, INITIAL_ACCOUNTING)
   );
+  const [newsPosts, setNewsPosts] = useState<NewsPostRecord[]>(() =>
+    readStorage(KEY_NEWS_POSTS, INITIAL_NEWS_POSTS)
+  );
 
   useEffect(() => {
     const sync = () => {
@@ -581,6 +775,7 @@ export function useDonationsStore() {
       setPickups(readStorage(KEY_PICKUPS, INITIAL_PICKUPS));
       setMonthlyDonors(readStorage(KEY_MONTHLY_DONORS, INITIAL_MONTHLY_DONORS));
       setAccountingEntries(readStorage(KEY_ACCOUNTING, INITIAL_ACCOUNTING));
+      setNewsPosts(readStorage(KEY_NEWS_POSTS, INITIAL_NEWS_POSTS));
     };
     window.addEventListener(SYNC_EVENT, sync);
     return () => window.removeEventListener(SYNC_EVENT, sync);
@@ -955,12 +1150,43 @@ export function useDonationsStore() {
     []
   );
 
+  const addNewsPost = useCallback((post: Omit<NewsPostRecord, 'id'>) => {
+    const current = readStorage<NewsPostRecord[]>(KEY_NEWS_POSTS, INITIAL_NEWS_POSTS);
+    const newPost: NewsPostRecord = {
+      ...post,
+      id: `news-${Date.now()}`,
+    };
+    const next = [newPost, ...current].sort((a, b) =>
+      b.publishedAt.localeCompare(a.publishedAt)
+    );
+    setNewsPosts(next);
+    writeStorage(KEY_NEWS_POSTS, next);
+    return newPost;
+  }, []);
+
+  const updateNewsPost = useCallback((id: string, patch: Partial<NewsPostRecord>) => {
+    const current = readStorage<NewsPostRecord[]>(KEY_NEWS_POSTS, INITIAL_NEWS_POSTS);
+    const next = current
+      .map((item) => (item.id === id ? { ...item, ...patch } : item))
+      .sort((a, b) => b.publishedAt.localeCompare(a.publishedAt));
+    setNewsPosts(next);
+    writeStorage(KEY_NEWS_POSTS, next);
+  }, []);
+
+  const deleteNewsPost = useCallback((id: string) => {
+    const current = readStorage<NewsPostRecord[]>(KEY_NEWS_POSTS, INITIAL_NEWS_POSTS);
+    const next = current.filter((item) => item.id !== id);
+    setNewsPosts(next);
+    writeStorage(KEY_NEWS_POSTS, next);
+  }, []);
+
   return {
     products,
     donations,
     pickups,
     monthlyDonors,
     accountingEntries,
+    newsPosts,
     addDonation,
     updateDonationStatus,
     deleteDonation,
@@ -975,5 +1201,8 @@ export function useDonationsStore() {
     updatePickupStatus,
     addProductItem,
     updateProductItem,
+    addNewsPost,
+    updateNewsPost,
+    deleteNewsPost,
   };
 }

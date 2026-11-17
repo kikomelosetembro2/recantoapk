@@ -13,6 +13,7 @@ import { FormEvent, useMemo, useState } from 'react';
 import {
   buildPickupWhatsappUrl,
   PickupItemSelection,
+  PickupScheduleRecord,
   PIX_INFO,
   ProductCategory,
   useDonationsStore,
@@ -50,7 +51,7 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
   const [selectedQuantities, setSelectedQuantities] = useState<Record<string, number>>({});
   const [customItemsText, setCustomItemsText] = useState('');
   const [formError, setFormError] = useState('');
-  const [submittedPickupUrl, setSubmittedPickupUrl] = useState<string | null>(null);
+  const [submittedPickup, setSubmittedPickup] = useState<PickupScheduleRecord | null>(null);
 
   const visibleProducts = useMemo(() => {
     return products.filter(
@@ -113,24 +114,24 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
       customItemsText: customItemsText.trim(),
     };
 
-    addPickupSchedule(recordPayload);
+    const created = addPickupSchedule(recordPayload);
     setFormError('');
-    setSubmittedPickupUrl(buildPickupWhatsappUrl(recordPayload));
+    setSubmittedPickup(created);
   };
 
   return (
-    <section id="doacoes" className="border-b border-[#E2DDD3] bg-[#F4F0E8]">
+    <section id="doacoes" className="border-b-2 border-[#BBF7D0] bg-[#F0FDF4]">
       <div className="mx-auto max-w-[1200px] px-6 py-16 lg:py-20">
         {/* Top split */}
-        <div className="flex flex-col justify-between gap-6 border-b border-[#D6CEBE] pb-8 lg:flex-row lg:items-end">
+        <div className="flex flex-col justify-between gap-6 border-b border-[#BBF7D0] pb-8 lg:flex-row lg:items-end">
           <div className="max-w-2xl">
-            <p className="text-xs font-medium uppercase tracking-widest text-[#9A3412]">
+            <p className="text-xs font-semibold uppercase tracking-widest text-[#854D0E]">
               Apoio Financeiro, Doadores Mensais &amp; Coletas
             </p>
-            <h2 className="mt-2 font-serif text-3xl font-semibold tracking-tight text-[#1C1917] sm:text-4xl">
+            <h2 className="mt-2 font-serif text-3xl font-semibold tracking-tight text-[#052E16] sm:text-4xl">
               Contribua via PIX, torne-se doador mensal ou agende uma coleta
             </h2>
-            <p className="mt-3 text-base leading-relaxed text-[#44403C]">
+            <p className="mt-3 text-base leading-relaxed text-[#14532D]">
               Cada contribuição mantém a cozinha comunitária e a panificação solidária em
               Plácido de Castro. Apoie com doação única, assinatura mensal via PIX ou produtos
               da lista abaixo.
@@ -147,15 +148,15 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
             <button
               type="button"
               onClick={() => onOpenDonateModal('monthly')}
-              className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-md bg-[#14532D] px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#0F3F22] whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-md bg-[#15803D] px-4 py-2.5 text-xs font-semibold text-white transition-colors hover:bg-[#14532D] whitespace-nowrap shrink-0"
             >
-              <CalendarClock className="h-4 w-4" aria-hidden="true" />
+              <CalendarClock className="h-4 w-4 text-[#FEF08A]" aria-hidden="true" />
               <span>Ser Doador Mensal</span>
             </button>
             <button
               type="button"
               onClick={onOpenAdmin}
-              className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-md border border-[#D6CEBE] bg-white px-4 py-2.5 text-xs font-semibold text-[#1C1917] transition-colors hover:bg-[#EFEBE3] whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 rounded-md border-2 border-[#15803D] bg-white px-4 py-2.5 text-xs font-semibold text-[#14532D] transition-colors hover:bg-[#FEFCE8] whitespace-nowrap shrink-0"
             >
               <span>Painel &amp; Contabilidade</span>
               <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
@@ -165,28 +166,28 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
 
         {/* Dual PIX Keys Strip (CNPJ + Telefone +55 68 9958-7200) */}
         <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#D6CEBE] bg-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border-2 border-[#BBF7D0] bg-white p-5">
             <div className="flex items-start gap-3.5">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[#E2DDD3] bg-[#FBF9F5] text-[#14532D]">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[#86EFAC] bg-[#F0FDF4] text-[#15803D]">
                 <QrCode className="h-5 w-5" aria-hidden="true" />
               </div>
               <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-[#78716C]">
+                <p className="text-xs font-semibold uppercase tracking-widest text-[#15803D]">
                   Chave PIX · CNPJ Institucional
                 </p>
-                <p className="mt-1 font-mono text-base font-semibold tabular-nums text-[#1C1917]">
+                <p className="mt-1 font-mono text-base font-bold tabular-nums text-[#052E16]">
                   {PIX_INFO.pixKey}
                 </p>
-                <p className="text-xs text-[#57534E]">{PIX_INFO.beneficiary}</p>
+                <p className="text-xs text-[#166534]">{PIX_INFO.beneficiary}</p>
               </div>
             </div>
             <button
               type="button"
               onClick={() => handleCopyKey(PIX_INFO.pixKey, 'cnpj')}
-              className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3.5 py-2 text-xs font-semibold text-[#1C1917] hover:bg-[#EFEBE3] whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-md border border-[#CA8A04] bg-[#FACC15] px-3.5 py-2 text-xs font-bold text-[#052E16] hover:bg-[#EAB308] whitespace-nowrap shrink-0"
             >
               {copiedKey === 'cnpj' ? (
-                <Check className="h-4 w-4 text-[#14532D]" />
+                <Check className="h-4 w-4 text-[#052E16]" />
               ) : (
                 <Copy className="h-4 w-4" />
               )}
@@ -194,19 +195,19 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-[#D6CEBE] bg-white p-5">
+          <div className="flex flex-wrap items-center justify-between gap-4 rounded-lg border-2 border-[#BBF7D0] bg-white p-5">
             <div className="flex items-start gap-3.5">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[#E2DDD3] bg-[#FBF9F5] text-[#14532D]">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-[#FACC15] bg-[#FEFCE8] text-[#854D0E]">
                 <Phone className="h-5 w-5" aria-hidden="true" />
               </div>
               <div>
-                <p className="text-xs font-medium uppercase tracking-widest text-[#78716C]">
+                <p className="text-xs font-semibold uppercase tracking-widest text-[#15803D]">
                   Chave PIX &amp; WhatsApp · Telefone
                 </p>
-                <p className="mt-1 font-mono text-base font-semibold tabular-nums text-[#1C1917]">
+                <p className="mt-1 font-mono text-base font-bold tabular-nums text-[#052E16]">
                   {PIX_INFO.pixPhoneDisplay}
                 </p>
-                <p className="text-xs text-[#57534E]">
+                <p className="text-xs text-[#166534]">
                   Transferência PIX ou envio de comprovantes
                 </p>
               </div>
@@ -214,10 +215,10 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
             <button
               type="button"
               onClick={() => handleCopyKey(PIX_INFO.pixPhoneKey, 'phone')}
-              className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3.5 py-2 text-xs font-semibold text-[#1C1917] hover:bg-[#EFEBE3] whitespace-nowrap shrink-0"
+              className="inline-flex min-h-[40px] cursor-pointer items-center gap-1.5 rounded-md border border-[#CA8A04] bg-[#FACC15] px-3.5 py-2 text-xs font-bold text-[#052E16] hover:bg-[#EAB308] whitespace-nowrap shrink-0"
             >
               {copiedKey === 'phone' ? (
-                <Check className="h-4 w-4 text-[#14532D]" />
+                <Check className="h-4 w-4 text-[#052E16]" />
               ) : (
                 <Copy className="h-4 w-4" />
               )}
@@ -228,7 +229,7 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
 
         {/* Section Tabs: Lista de Produtos vs Agendamento de Coleta */}
         <div className="mt-10 flex flex-wrap items-center justify-between gap-4">
-          <div role="tablist" className="inline-flex rounded-lg bg-[#E8E2D5] p-1">
+          <div role="tablist" className="inline-flex rounded-lg border border-[#BBF7D0] bg-[#DCFCE7] p-1">
             <button
               type="button"
               role="tab"
@@ -236,8 +237,8 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
               onClick={() => setActiveTab('produtos')}
               className={`cursor-pointer rounded-md px-4 py-2 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'produtos'
-                  ? 'bg-white text-[#1C1917] shadow-sm'
-                  : 'text-[#57534E] hover:text-[#1C1917]'
+                  ? 'bg-[#15803D] text-white shadow-sm'
+                  : 'text-[#14532D] hover:bg-white/75'
               }`}
             >
               Lista de Produtos Aceitos ({products.filter((p) => p.active).length})
@@ -249,8 +250,8 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
               onClick={() => setActiveTab('agendamento')}
               className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-4 py-2 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                 activeTab === 'agendamento'
-                  ? 'bg-white text-[#1C1917] shadow-sm'
-                  : 'text-[#57534E] hover:text-[#1C1917]'
+                  ? 'bg-[#15803D] text-white shadow-sm'
+                  : 'text-[#14532D] hover:bg-white/75'
               }`}
             >
               <Truck className="h-3.5 w-3.5" aria-hidden="true" />
@@ -259,16 +260,16 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
           </div>
 
           {activeTab === 'produtos' && (
-            <div className="flex flex-wrap items-center gap-1 rounded-lg bg-[#E8E2D5] p-1">
+            <div className="flex flex-wrap items-center gap-1 rounded-lg border border-[#FACC15] bg-[#FEFCE8] p-1">
               {PRODUCT_CATEGORIES.map((cat) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setProductFilter(cat)}
-                  className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
                     productFilter === cat
-                      ? 'bg-white text-[#1C1917] shadow-sm'
-                      : 'text-[#57534E] hover:text-[#1C1917]'
+                      ? 'bg-[#FACC15] text-[#052E16] shadow-sm'
+                      : 'text-[#854D0E] hover:bg-white'
                   }`}
                 >
                   {cat}
@@ -279,43 +280,43 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
         </div>
 
         {activeTab === 'produtos' ? (
-          <div className="mt-6 overflow-x-auto rounded-lg border border-[#D6CEBE] bg-white">
+          <div className="mt-6 overflow-x-auto rounded-lg border-2 border-[#BBF7D0] bg-white">
             <table className="w-full border-collapse text-left text-sm">
               <thead>
-                <tr className="border-b border-[#E2DDD3] bg-[#FBF9F5] text-xs uppercase tracking-wider text-[#78716C]">
-                  <th className="px-5 py-3.5 font-medium">Produto / Insumo</th>
-                  <th className="px-5 py-3.5 font-medium">Frente</th>
-                  <th className="px-5 py-3.5 font-medium">Prioridade</th>
-                  <th className="px-5 py-3.5 text-right font-medium">Recebido / Meta</th>
-                  <th className="px-5 py-3.5 text-right font-medium">Doar item</th>
+                <tr className="border-b border-[#BBF7D0] bg-[#DCFCE7]/50 text-xs uppercase tracking-wider text-[#14532D]">
+                  <th className="px-5 py-3.5 font-semibold">Produto / Insumo</th>
+                  <th className="px-5 py-3.5 font-semibold">Frente</th>
+                  <th className="px-5 py-3.5 font-semibold">Prioridade</th>
+                  <th className="px-5 py-3.5 text-right font-semibold">Recebido / Meta</th>
+                  <th className="px-5 py-3.5 text-right font-semibold">Doar item</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#EFEBE3]">
+              <tbody className="divide-y divide-[#DCFCE7]">
                 {visibleProducts.map((item) => {
                   const pct = Math.min(
                     100,
                     Math.round((item.receivedQty / Math.max(1, item.targetQty)) * 100)
                   );
                   return (
-                    <tr key={item.id} className="hover:bg-[#FBF9F5]">
-                      <td className="px-5 py-3.5 font-medium text-[#1C1917]">{item.name}</td>
-                      <td className="px-5 py-3.5 text-xs text-[#57534E]">{item.category}</td>
+                    <tr key={item.id} className="hover:bg-[#F0FDF4]">
+                      <td className="px-5 py-3.5 font-semibold text-[#052E16]">{item.name}</td>
+                      <td className="px-5 py-3.5 text-xs text-[#166534]">{item.category}</td>
                       <td className="px-5 py-3.5 text-xs">
                         <span
-                          className={`font-medium ${
+                          className={`font-semibold ${
                             item.priority === 'Prioritário'
-                              ? 'text-[#9A3412]'
+                              ? 'text-[#854D0E]'
                               : item.priority === 'Contínuo'
-                                ? 'text-[#14532D]'
-                                : 'text-[#57534E]'
+                                ? 'text-[#15803D]'
+                                : 'text-[#166534]'
                           }`}
                         >
                           {item.priority}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-right font-mono text-xs tabular-nums text-[#1C1917]">
+                      <td className="px-5 py-3.5 text-right font-mono text-xs tabular-nums text-[#052E16]">
                         {item.receivedQty} / {item.targetQty} {item.unit}{' '}
-                        <span className="text-[#78716C]">({pct}%)</span>
+                        <span className="text-[#15803D]">({pct}%)</span>
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <button
@@ -327,7 +328,7 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                             }));
                             setActiveTab('agendamento');
                           }}
-                          className="cursor-pointer text-xs font-semibold text-[#14532D] hover:underline underline-offset-4 whitespace-nowrap"
+                          className="cursor-pointer text-xs font-bold text-[#15803D] hover:text-[#052E16] hover:underline underline-offset-4 whitespace-nowrap"
                         >
                           Selecionar para coleta
                         </button>
@@ -339,17 +340,17 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
             </table>
           </div>
         ) : (
-          <div className="mt-6 rounded-lg border border-[#D6CEBE] bg-white p-6 sm:p-8">
+          <div className="mt-6 rounded-lg border-2 border-[#BBF7D0] bg-white p-6 sm:p-8">
             <form onSubmit={handleSubmitPickup} className="grid grid-cols-1 gap-8 lg:grid-cols-12">
               <div className="space-y-4 lg:col-span-6">
                 <div>
-                  <h3 className="font-serif text-xl font-semibold text-[#1C1917]">
+                  <h3 className="font-serif text-xl font-semibold text-[#052E16]">
                     Dados do colaborador e coleta
                   </h3>
-                  <p className="mt-1 text-xs text-[#57534E]">
+                  <p className="mt-1 text-xs text-[#14532D]">
                     Preencha seus dados para agendarmos a retirada pelo veículo do Projeto Sopão ou
                     envie direto pelo WhatsApp{' '}
-                    <span className="font-mono font-medium text-[#1C1917]">
+                    <span className="font-mono font-bold text-[#052E16]">
                       {PIX_INFO.pickupWhatsappDisplay}
                     </span>
                     .
@@ -357,7 +358,7 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                 </div>
 
                 <div>
-                  <label htmlFor="sec-collab-name" className="block text-xs font-medium text-[#44403C]">
+                  <label htmlFor="sec-collab-name" className="block text-xs font-semibold text-[#14532D]">
                     Nome do colaborador
                   </label>
                   <input
@@ -367,13 +368,13 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                     value={collabName}
                     onChange={(e) => setCollabName(e.target.value)}
                     placeholder="Ex.: João Carlos Pereira"
-                    className="mt-1 min-h-[44px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 py-2 text-sm text-[#1C1917]"
+                    className="mt-1 min-h-[44px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="sec-collab-email" className="block text-xs font-medium text-[#44403C]">
+                    <label htmlFor="sec-collab-email" className="block text-xs font-semibold text-[#14532D]">
                       E-mail do colaborador
                     </label>
                     <input
@@ -383,11 +384,11 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                       value={collabEmail}
                       onChange={(e) => setCollabEmail(e.target.value)}
                       placeholder="colaborador@email.com"
-                      className="mt-1 min-h-[44px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 py-2 text-sm text-[#1C1917]"
+                      className="mt-1 min-h-[44px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                     />
                   </div>
                   <div>
-                    <label htmlFor="sec-collab-phone" className="block text-xs font-medium text-[#44403C]">
+                    <label htmlFor="sec-collab-phone" className="block text-xs font-semibold text-[#14532D]">
                       Telefone do colaborador
                     </label>
                     <input
@@ -397,13 +398,13 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                       value={collabPhone}
                       onChange={(e) => setCollabPhone(e.target.value)}
                       placeholder="(68) 99900-0000"
-                      className="mt-1 min-h-[44px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 py-2 text-sm text-[#1C1917]"
+                      className="mt-1 min-h-[44px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label htmlFor="sec-pickup-addr" className="block text-xs font-medium text-[#44403C]">
+                  <label htmlFor="sec-pickup-addr" className="block text-xs font-semibold text-[#14532D]">
                     Endereço completo de coleta
                   </label>
                   <input
@@ -413,13 +414,13 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                     value={pickupAddress}
                     onChange={(e) => setPickupAddress(e.target.value)}
                     placeholder="Rua, nº, bairro ou ramal em Plácido de Castro - AC"
-                    className="mt-1 min-h-[44px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 py-2 text-sm text-[#1C1917]"
+                    className="mt-1 min-h-[44px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                   />
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    <label htmlFor="sec-pickup-date" className="block text-xs font-medium text-[#44403C]">
+                    <label htmlFor="sec-pickup-date" className="block text-xs font-semibold text-[#14532D]">
                       Data preferencial
                     </label>
                     <input
@@ -427,11 +428,11 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                       type="date"
                       value={preferredDate}
                       onChange={(e) => setPreferredDate(e.target.value)}
-                      className="mt-1 min-h-[44px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 py-2 font-mono text-sm text-[#1C1917]"
+                      className="mt-1 min-h-[44px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 font-mono text-sm text-[#052E16]"
                     />
                   </div>
                   <div>
-                    <label htmlFor="sec-pickup-shift" className="block text-xs font-medium text-[#44403C]">
+                    <label htmlFor="sec-pickup-shift" className="block text-xs font-semibold text-[#14532D]">
                       Turno preferencial
                     </label>
                     <select
@@ -445,7 +446,7 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                             | 'Sábado (08h–12h)'
                         )
                       }
-                      className="mt-1 min-h-[44px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 py-2 text-sm text-[#1C1917]"
+                      className="mt-1 min-h-[44px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                     >
                       <option value="Manhã (08h–12h)">Manhã (08h–12h)</option>
                       <option value="Tarde (14h–18h)">Tarde (14h–18h)</option>
@@ -457,15 +458,15 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
 
               <div className="space-y-4 lg:col-span-6">
                 <div>
-                  <h3 className="font-serif text-xl font-semibold text-[#1C1917]">
+                  <h3 className="font-serif text-xl font-semibold text-[#052E16]">
                     Produtos selecionados para doação
                   </h3>
-                  <p className="mt-1 text-xs text-[#57534E]">
+                  <p className="mt-1 text-xs text-[#166534]">
                     Informe a quantidade dos itens disponíveis para retirada.
                   </p>
                 </div>
 
-                <div className="max-h-[260px] divide-y divide-[#EFEBE3] overflow-y-auto rounded-lg border border-[#E2DDD3] bg-[#FBF9F5] px-4">
+                <div className="max-h-[260px] divide-y divide-[#DCFCE7] overflow-y-auto rounded-lg border border-[#BBF7D0] bg-[#F0FDF4] px-4">
                   {products
                     .filter((p) => p.active)
                     .map((item) => {
@@ -473,8 +474,8 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                       return (
                         <div key={item.id} className="flex items-center justify-between gap-3 py-2.5">
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-[#1C1917]">{item.name}</p>
-                            <p className="text-[11px] text-[#78716C]">{item.category}</p>
+                            <p className="text-sm font-semibold text-[#052E16]">{item.name}</p>
+                            <p className="text-[11px] text-[#15803D]">{item.category}</p>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
                             <input
@@ -487,9 +488,9 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                                 const val = Math.max(0, Number(e.target.value) || 0);
                                 setSelectedQuantities((prev) => ({ ...prev, [item.id]: val }));
                               }}
-                              className="h-9 w-16 rounded border border-[#D6CEBE] bg-white px-2 text-right font-mono text-xs tabular-nums text-[#1C1917]"
+                              className="h-9 w-16 rounded border border-[#86EFAC] bg-white px-2 text-right font-mono text-xs tabular-nums text-[#052E16]"
                             />
-                            <span className="w-16 text-xs text-[#57534E]">{item.unit}</span>
+                            <span className="w-16 text-xs text-[#14532D]">{item.unit}</span>
                           </div>
                         </div>
                       );
@@ -497,7 +498,7 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                 </div>
 
                 <div>
-                  <label htmlFor="sec-custom-items" className="block text-xs font-medium text-[#44403C]">
+                  <label htmlFor="sec-custom-items" className="block text-xs font-semibold text-[#14532D]">
                     Outros produtos ou observações
                   </label>
                   <input
@@ -506,40 +507,55 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                     value={customItemsText}
                     onChange={(e) => setCustomItemsText(e.target.value)}
                     placeholder="Ex.: 2 sacos de cebola, 5 caixas de leite..."
-                    className="mt-1 min-h-[42px] w-full rounded-md border border-[#D6CEBE] bg-[#FBF9F5] px-3 py-2 text-sm text-[#1C1917]"
+                    className="mt-1 min-h-[42px] w-full rounded-md border border-[#86EFAC] bg-white px-3 py-2 text-sm text-[#052E16]"
                   />
                 </div>
 
                 {formError && (
-                  <p role="alert" className="text-xs font-medium text-[#9A3412]">
+                  <p
+                    role="alert"
+                    className="rounded border border-[#EAB308] bg-[#FEFCE8] px-3 py-2 text-xs font-semibold text-[#854D0E]"
+                  >
                     {formError}
                   </p>
                 )}
 
-                {submittedPickupUrl ? (
-                  <div className="space-y-3 rounded-lg border border-[#14532D]/30 bg-[#FBF9F5] p-4">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-[#14532D]">
-                      <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                      <span>Agendamento salvo no controle administrativo!</span>
+                {submittedPickup ? (
+                  <div className="space-y-3 rounded-lg border-2 border-[#15803D] bg-[#F0FDF4] p-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-sm font-semibold text-[#15803D]">
+                        <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                        <span>Recibo de agendamento salvo no painel administrativo!</span>
+                      </div>
+                      <p className="mt-1 font-mono text-xs font-semibold text-[#854D0E]">
+                        Protocolo: {submittedPickup.id.toUpperCase()} · {submittedPickup.preferredDate}
+                      </p>
                     </div>
                     <a
-                      href={submittedPickupUrl}
+                      href={buildPickupWhatsappUrl(submittedPickup)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-[#14532D] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#0F3F22]"
+                      className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-md bg-[#15803D] px-4 py-2.5 text-xs font-semibold text-white hover:bg-[#14532D]"
                     >
-                      <MessageCircle className="h-4 w-4" aria-hidden="true" />
+                      <MessageCircle className="h-4 w-4 text-[#FEF08A]" aria-hidden="true" />
                       <span>
-                        Enviar agendamento via WhatsApp ({PIX_INFO.pickupWhatsappDisplay})
+                        Enviar recibo do agendamento via WhatsApp ({PIX_INFO.pickupWhatsappDisplay})
                       </span>
                       <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
                     </a>
+                    <button
+                      type="button"
+                      onClick={() => setSubmittedPickup(null)}
+                      className="cursor-pointer text-xs font-semibold text-[#854D0E] hover:underline"
+                    >
+                      Agendar outra coleta
+                    </button>
                   </div>
                 ) : (
                   <div className="flex flex-col gap-3 pt-1 sm:flex-row">
                     <button
                       type="submit"
-                      className="inline-flex min-h-[44px] flex-1 cursor-pointer items-center justify-center rounded-md bg-[#14532D] px-5 py-2.5 text-xs font-semibold text-white hover:bg-[#0F3F22]"
+                      className="inline-flex min-h-[44px] flex-1 cursor-pointer items-center justify-center rounded-md bg-[#FACC15] px-5 py-2.5 text-xs font-bold text-[#052E16] border border-[#CA8A04] hover:bg-[#EAB308]"
                     >
                       Confirmar Agendamento de Coleta
                     </button>
@@ -557,7 +573,7 @@ export function DonationSection({ onOpenDonateModal, onOpenAdmin }: DonationSect
                       })}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border border-[#14532D] bg-white px-4 py-2.5 text-xs font-semibold text-[#14532D] hover:bg-[#F4F0E8] whitespace-nowrap shrink-0"
+                      className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-md border-2 border-[#15803D] bg-white px-4 py-2.5 text-xs font-semibold text-[#15803D] hover:bg-[#F0FDF4] whitespace-nowrap shrink-0"
                     >
                       <MessageCircle className="h-4 w-4" aria-hidden="true" />
                       <span>WhatsApp {PIX_INFO.pickupWhatsappDisplay}</span>
